@@ -24,3 +24,4 @@ env/
 *.swo
 audit.jsonl
 *.log
+dist/

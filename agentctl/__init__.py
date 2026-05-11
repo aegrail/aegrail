@@ -15,7 +15,7 @@ from .budget import Budget, BudgetState
 from .exceptions import AgentctlError, BudgetExceeded, SessionTerminated
 from .session import Session
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.0"
 
 __all__ = [
     "Agent",

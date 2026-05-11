@@ -1,5 +1,10 @@
 # agentctl
 
+[![CI](https://github.com/agentctl/agentctl/actions/workflows/ci.yml/badge.svg)](https://github.com/agentctl/agentctl/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agentctl.svg)](https://pypi.org/project/agentctl/)
+[![Python](https://img.shields.io/pypi/pyversions/agentctl.svg)](https://pypi.org/project/agentctl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 **The runtime contract for AI agents in production.**
 
 A container runtime assumes deterministic code. An agent isn't deterministic. Run your agents on something that knows that.
@@ -88,6 +93,37 @@ If the budget is exceeded mid-loop, the session raises. The agent cannot talk it
 
 ---
 
+## Real-provider examples
+
+Working end-to-end demos with live LLM calls:
+
+- [`examples/openai_demo.py`](examples/openai_demo.py) — OpenAI Chat Completions
+- [`examples/anthropic_demo.py`](examples/anthropic_demo.py) — Anthropic Messages
+- [`examples/basic.py`](examples/basic.py) — provider-free walkthrough
+- [`examples/budget_kill.py`](examples/budget_kill.py) — the runtime stopping a runaway loop
+
+```bash
+pip install openai
+export OPENAI_API_KEY=sk-...
+python examples/openai_demo.py
+```
+
+---
+
+## Where it fits next to what you already use
+
+| Tool | What it does | Where agentctl fits |
+|---|---|---|
+| **Okta / Auth0 / WorkOS** | User identity, OAuth | Sits underneath — agentctl ties the user identity to per-session agent principals |
+| **Langfuse / Helicone / LangSmith** | LLM observability and prompt management | Complementary — Langfuse is debug-grade, agentctl is enforcement-grade. Run both. |
+| **Lakera / Prompt Security** | Input-layer prompt-injection filtering | Complementary — they guard inputs, agentctl guards actions |
+| **LangChain / LlamaIndex / MCP / OpenAI Agents SDK** | Agent frameworks | agentctl wraps your sessions; you keep your framework |
+| **OPA / Cedar** | General authorization policy | v0.2 will compose on top of these for action-layer policy |
+
+agentctl is not a replacement for any of these. It is the **runtime layer** they all assume but none of them ship.
+
+---
+
 ## What an audit event looks like
 
 ```json
@@ -125,9 +161,26 @@ Designed so you can answer the question every team eventually asks: *what did th
 
 ## Status
 
-**v0.1 — pre-alpha.** Active development. API will change. Production use at your own risk until v0.3.
+**v0.1 — early. Stable surface, narrow scope.** The three primitives shipped here are the foundation; expect them to remain backwards-compatible. v0.2 adds a policy engine, v0.3 adds the egress allowlist proxy.
 
-Star the repo if you want to be notified when v0.1 ships.
+48 tests, 94% line coverage, ruff clean. CI green on Python 3.10, 3.11, 3.12.
+
+---
+
+## Roadmap
+
+- **v0.1** — scoped identity, budget kill-switches, audit log _(shipped)_
+- **v0.1.x** — provider helpers (OpenAI/Anthropic/litellm), async/await, redaction rules
+- **v0.2** — action-level policy DSL (`agent X may call tool Y only with args Z`)
+- **v0.3** — egress allowlist proxy (network-level enforcement)
+- **v0.4** — approval gates for irreversible actions
+- **v1.0** — hosted control plane (paid)
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ---
 
