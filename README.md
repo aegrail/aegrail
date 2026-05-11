@@ -56,7 +56,13 @@ What it deliberately does **not** do (yet):
 pip install agentctl
 ```
 
-Python 3.10+. Zero hard dependencies beyond `pydantic` and `httpx`. Works with any LLM provider (OpenAI, Anthropic, Bedrock, raw HTTP). Works alongside any agent framework (LangChain, LlamaIndex, MCP, custom).
+> **Note:** the PyPI release lands with `v0.1.0`. Until then, install from source:
+> ```bash
+> git clone https://github.com/arpitcoder/agentctl
+> cd agentctl && pip install -e .
+> ```
+
+Python 3.10+. Zero hard dependencies beyond `pydantic`. Works with any LLM provider (OpenAI, Anthropic, Bedrock, raw HTTP). Works alongside any agent framework (LangChain, LlamaIndex, MCP, custom).
 
 ---
 
@@ -67,29 +73,66 @@ from agentctl import Agent, Budget, AuditSink
 
 agent = Agent(
     identity="support-bot/v1",
-    budget=Budget(usd=5.0, tokens=100_000, wall_seconds=120),
+    budget=Budget(usd=5.0, tokens=100_000, wall_seconds=120, max_tool_calls=10),
     audit=AuditSink.file("./audit.jsonl"),
 )
 
-with agent.session(user_id="alice", task="refund order #4521") as session:
-    # Wrap your existing LLM call — provider-agnostic.
-    response = session.llm.chat(
+def refund(order_id: int) -> str:
+    # Your real tool — could be an API call, DB write, anything.
+    return f"refunded order {order_id}"
+
+with agent.session(user_id="alice", task="refund order #4521") as s:
+    # 1. Call your LLM however you like (OpenAI SDK, Anthropic SDK, raw HTTP).
+    #    Then tell the runtime what it cost. Provider-agnostic by design.
+    s.record_llm(
         model="claude-sonnet-4-5",
-        messages=[{"role": "user", "content": "..."}],
+        tokens_in=120,
+        tokens_out=300,
+        cost_usd=0.012,
     )
 
-    # Wrap your existing tool call.
-    result = session.tool("refund_api.refund", order_id=4521)
+    # 2. Run a tool through the session — counted against the budget, audited.
+    result = s.call_tool("refund_api.refund", refund, order_id=4521)
 ```
 
 That's it. The session:
 
-- Generates a short-lived per-session identity (`support-bot/v1@session-7f3a...`)
+- Generates a short-lived per-session principal (`support-bot/v1@sess_<ms>_<rand>`)
 - Tracks tokens and dollars against the budget; raises `BudgetExceeded` deterministically when hit
 - Emits a structured event for every LLM call and tool invocation, identity-linked, append-only
-- Stops the agent if wall-clock or recursion limits are hit, no matter what the LLM "decides"
+- Stops the agent if wall-clock, recursion, or tool-call limits are hit, no matter what the LLM "decides"
 
 If the budget is exceeded mid-loop, the session raises. The agent cannot talk its way out of it.
+
+---
+
+## First 60 seconds
+
+```bash
+git clone https://github.com/arpitcoder/agentctl
+cd agentctl
+pip install -e .
+
+# Happy path — synthetic LLM call, real audit log.
+python examples/basic.py
+
+# The kill-switch — agent loops greedily, runtime stops it deterministically.
+python examples/budget_kill.py
+```
+
+`examples/budget_kill.py` prints:
+
+```
+iteration 1: state={'tokens_used': 500, 'usd_used': 0.01, ...}
+iteration 2: state={'tokens_used': 1000, 'usd_used': 0.02, ...}
+iteration 3: state={'tokens_used': 1500, 'usd_used': 0.03, ...}
+iteration 4: state={'tokens_used': 2000, 'usd_used': 0.04, ...}
+iteration 5: state={'tokens_used': 2500, 'usd_used': 0.05, ...}
+
+[runtime] killed by reason=usd: usd budget exceeded: 0.0600 > 0.0500
+```
+
+That's the `$4,200-weekend` scenario, prevented in code.
 
 ---
 
@@ -126,23 +169,33 @@ agentctl is not a replacement for any of these. It is the **runtime layer** they
 
 ## What an audit event looks like
 
+Every line of `audit.jsonl` is one event. Identity-linked, append-only, JSON.
+
 ```json
 {
   "ts": "2026-05-11T09:14:22.481Z",
-  "session_id": "sess_01HQXY...",
+  "session_id": "sess_1778480062481_4bf0a4f8cf1c",
   "agent_identity": "support-bot/v1",
   "invoking_user": "alice",
+  "principal": "support-bot/v1@sess_1778480062481_4bf0a4f8cf1c",
   "event": "tool_call",
-  "tool": "refund_api.refund",
-  "args": {"order_id": 4521},
-  "result_summary": "ok",
-  "tokens_in": 0,
-  "tokens_out": 0,
-  "cost_usd": 0.0,
-  "elapsed_ms": 142,
-  "trace_id": "tr_01HQXY..."
+  "payload": {
+    "tool": "refund_api.refund",
+    "args": {"order_id": 4521},
+    "ok": true,
+    "elapsed_ms": 0.42
+  },
+  "budget": {
+    "tokens_used": 420,
+    "usd_used": 0.012,
+    "tool_calls": 1,
+    "recursion_depth": 0,
+    "wall_elapsed": 0.18
+  }
 }
 ```
+
+Top-level fields are flat for log-ingestion friendliness (ship to S3, ClickHouse, Loki, Datadog, anything that takes JSONL). `payload` carries event-specific detail; `budget` carries a snapshot of consumption *at the moment of emission*, so you can reconstruct cost-over-time from the log alone.
 
 Designed so you can answer the question every team eventually asks: *what did the agent do at 14:23, and why?*
 
