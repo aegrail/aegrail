@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentctl"
-version = "0.1.0"
+version = "0.1.1"
 description = "The runtime contract for AI agents in production."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,9 +34,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/agentctl/agentctl"
-Repository = "https://github.com/agentctl/agentctl"
-Issues = "https://github.com/agentctl/agentctl/issues"
+Homepage = "https://github.com/arpitcoder/agentctl"
+Repository = "https://github.com/arpitcoder/agentctl"
+Issues = "https://github.com/arpitcoder/agentctl/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agentctl"]

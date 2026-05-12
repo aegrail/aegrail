@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-12
+
+### Added
+
+- **`AuditSink.callback(fn)`** — invoke a user-supplied function on each
+  audit event. Synchronous; callback exceptions are caught and logged to
+  stderr, never propagated.
+- **`AuditSink.webhook(url, *, headers=None, timeout=3.0)`** — POST each
+  event as JSON to a URL. Uses stdlib `urllib` — no new runtime dependency.
+  Network failures, non-2xx responses, and timeouts are caught.
+- **`AuditSink.composite(*sinks)`** — fan one event out to multiple sinks.
+  Per-child error isolation: a failure in one child cannot affect the
+  others or the agent.
+
+### Project
+
+- 56 tests, 95% line coverage. Ruff clean.
+
 ## [0.1.0] — 2026-05-11
 
 Initial public release. Three primitives, deliberately.
@@ -43,5 +61,6 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/agentctl/agentctl/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/agentctl/agentctl/releases/tag/v0.1.0
+[Unreleased]: https://github.com/arpitcoder/agentctl/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/arpitcoder/agentctl/releases/tag/v0.1.1
+[0.1.0]: https://github.com/arpitcoder/agentctl/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 # agentctl
 
-[![CI](https://github.com/agentctl/agentctl/actions/workflows/ci.yml/badge.svg)](https://github.com/agentctl/agentctl/actions/workflows/ci.yml)
+[![CI](https://github.com/arpitcoder/agentctl/actions/workflows/ci.yml/badge.svg)](https://github.com/arpitcoder/agentctl/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/agentctl.svg)](https://pypi.org/project/agentctl/)
 [![Python](https://img.shields.io/pypi/pyversions/agentctl.svg)](https://pypi.org/project/agentctl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -198,6 +198,39 @@ Every line of `audit.jsonl` is one event. Identity-linked, append-only, JSON.
 Top-level fields are flat for log-ingestion friendliness (ship to S3, ClickHouse, Loki, Datadog, anything that takes JSONL). `payload` carries event-specific detail; `budget` carries a snapshot of consumption *at the moment of emission*, so you can reconstruct cost-over-time from the log alone.
 
 Designed so you can answer the question every team eventually asks: *what did the agent do at 14:23, and why?*
+
+---
+
+## Alerts and fanout
+
+The three core sinks (`file`, `stdout`, `memory`) cover persistence. Three more cover routing:
+
+```python
+from agentctl import Agent, AuditSink, Budget
+
+
+def on_event(evt):
+    if evt.event == "budget_exceeded":
+        # Send to PagerDuty, Slack, your incident pipeline — anything.
+        ...
+
+
+agent = Agent(
+    identity="payments-bot/v1",
+    budget=Budget(usd=5.0, wall_seconds=120),
+    audit=AuditSink.composite(
+        AuditSink.file("./audit.jsonl"),                          # forensic record
+        AuditSink.webhook("https://alerts.example.com/agentctl"), # real-time
+        AuditSink.callback(on_event),                             # in-process routing
+    ),
+)
+```
+
+- **`AuditSink.callback(fn)`** — invoke a Python function on every event. Synchronous; exceptions are caught.
+- **`AuditSink.webhook(url, *, headers=None, timeout=3.0)`** — POST events as JSON. Stdlib only, no `requests` dependency. Network errors, non-2xx responses, and timeouts are caught.
+- **`AuditSink.composite(*sinks)`** — fan out to multiple sinks. A failure in one child cannot affect the others — every child is isolated.
+
+Sink failures **never** break the agent. Every sink wraps its write path; errors land on stderr.
 
 ---
 
