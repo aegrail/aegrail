@@ -85,7 +85,7 @@ class Session(AbstractContextManager["Session"]):
 
         Provider-agnostic by design: you call your LLM however you
         like (OpenAI SDK, Anthropic SDK, litellm, raw HTTP) and tell
-        agentctl what it cost. The runtime updates the budget and
+        aegrail what it cost. The runtime updates the budget and
         emits an audit event. Budget violations surface here.
         """
         self._require_open()
@@ -125,7 +125,7 @@ class Session(AbstractContextManager["Session"]):
           - budget violations propagate as BudgetExceeded
 
         `_arg_summary` lets the caller log a redacted view of the
-        arguments. If omitted, agentctl emits only the argument
+        arguments. If omitted, aegrail emits only the argument
         *keys* — not their values — to avoid leaking PII into logs.
         """
         self._require_open()
@@ -220,8 +220,7 @@ class Session(AbstractContextManager["Session"]):
             import sys
 
             print(
-                f"[agentctl] failed to build audit event ({event}): {exc}\n"
-                f"{traceback.format_exc()}",
+                f"[aegrail] failed to build audit event ({event}): {exc}\n{traceback.format_exc()}",
                 file=sys.stderr,
             )
             return

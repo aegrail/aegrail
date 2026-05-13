@@ -7,7 +7,7 @@ the $4,200-weekend scenario, prevented in code.
 
 from __future__ import annotations
 
-from agentctl import Agent, AuditSink, Budget, BudgetExceeded
+from aegrail import Agent, AuditSink, Budget, BudgetExceeded
 
 
 def main() -> None:

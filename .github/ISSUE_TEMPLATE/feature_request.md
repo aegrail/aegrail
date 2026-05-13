@@ -6,7 +6,7 @@ labels: enhancement
 ---
 
 **The problem**
-What pain are you hitting that agentctl doesn't address today? Stories beat
+What pain are you hitting that aegrail doesn't address today? Stories beat
 abstractions.
 
 **The change you'd like**
@@ -16,7 +16,7 @@ What would the API or behavior look like?
 What else have you tried, or could you do, instead?
 
 **Scope check**
-agentctl owns scoped identity, budget kill-switches, and the audit log.
+aegrail owns scoped identity, budget kill-switches, and the audit log.
 It deliberately does not own prompt management, eval, observability
 dashboards, or LLM provider abstraction. Does your request fit?
 

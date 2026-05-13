@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from agentctl.budget import Budget, BudgetState
-from agentctl.exceptions import BudgetExceeded
+from aegrail.budget import Budget, BudgetState
+from aegrail.exceptions import BudgetExceeded
 
 
 class TestBudgetValidation:

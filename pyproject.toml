@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentctl"
+name = "aegrail"
 version = "0.1.1"
 description = "The runtime contract for AI agents in production."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "agentctl contributors" }]
+authors = [{ name = "aegrail contributors" }]
 keywords = ["ai", "agents", "llm", "governance", "runtime", "audit", "security"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -34,12 +34,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/arpitcoder/agentctl"
-Repository = "https://github.com/arpitcoder/agentctl"
-Issues = "https://github.com/arpitcoder/agentctl/issues"
+Homepage = "https://github.com/arpitcoder/aegrail"
+Repository = "https://github.com/arpitcoder/aegrail"
+Issues = "https://github.com/arpitcoder/aegrail/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agentctl"]
+packages = ["aegrail"]
 
 [tool.ruff]
 line-length = 100

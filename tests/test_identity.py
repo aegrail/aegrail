@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from agentctl.identity import (
+from aegrail.identity import (
     new_session_id,
     session_principal,
     validate_agent_identity,

@@ -1,4 +1,4 @@
-"""Exceptions raised by the agentctl runtime.
+"""Exceptions raised by the aegrail runtime.
 
 These are *deterministic* — they fire when the runtime decides the session
 cannot continue, regardless of what the LLM has been instructed to do.
@@ -7,11 +7,11 @@ cannot continue, regardless of what the LLM has been instructed to do.
 from __future__ import annotations
 
 
-class AgentctlError(Exception):
-    """Base class for all agentctl runtime errors."""
+class AegrailError(Exception):
+    """Base class for all aegrail runtime errors."""
 
 
-class BudgetExceeded(AgentctlError):
+class BudgetExceeded(AegrailError):
     """Raised when a hard budget ceiling is hit.
 
     `reason` is a short machine-readable string: 'usd', 'tokens',
@@ -26,5 +26,5 @@ class BudgetExceeded(AgentctlError):
         self.state = state
 
 
-class SessionTerminated(AgentctlError):
+class SessionTerminated(AegrailError):
     """Raised when a caller attempts to use a session that has already ended."""

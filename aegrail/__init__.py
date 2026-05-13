@@ -1,4 +1,4 @@
-"""agentctl — the runtime contract for AI agents in production.
+"""aegrail — the runtime contract for AI agents in production.
 
 Three primitives, deliberately:
 
@@ -21,14 +21,14 @@ from .audit import (
     WebhookAuditSink,
 )
 from .budget import Budget, BudgetState
-from .exceptions import AgentctlError, BudgetExceeded, SessionTerminated
+from .exceptions import AegrailError, BudgetExceeded, SessionTerminated
 from .session import Session
 
 __version__ = "0.1.1"
 
 __all__ = [
+    "AegrailError",
     "Agent",
-    "AgentctlError",
     "AuditEvent",
     "AuditSink",
     "Budget",

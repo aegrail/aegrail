@@ -1,8 +1,8 @@
-# agentctl
+# aegrail
 
-[![CI](https://github.com/arpitcoder/agentctl/actions/workflows/ci.yml/badge.svg)](https://github.com/arpitcoder/agentctl/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/agentctl.svg)](https://pypi.org/project/agentctl/)
-[![Python](https://img.shields.io/pypi/pyversions/agentctl.svg)](https://pypi.org/project/agentctl/)
+[![CI](https://github.com/arpitcoder/aegrail/actions/workflows/ci.yml/badge.svg)](https://github.com/arpitcoder/aegrail/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/aegrail.svg)](https://pypi.org/project/aegrail/)
+[![Python](https://img.shields.io/pypi/pyversions/aegrail.svg)](https://pypi.org/project/aegrail/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **The runtime contract for AI agents in production.**
@@ -29,7 +29,7 @@ An agent in a container looks identical. Same Dockerfile, same pod spec, same `k
 
 The infrastructure stack hasn't caught up. That's why your agent looped for 63 hours and burned $4,200. That's why a malicious PR title made three production coding agents leak their own API keys. That's why your platform team can't tell you how many agents are in production right now.
 
-**`agentctl` is the missing runtime layer.** Deterministic enforcement of identity, budget, and audit on top of any agent stack you already use.
+**`aegrail` is the missing runtime layer.** Deterministic enforcement of identity, budget, and audit on top of any agent stack you already use.
 
 ---
 
@@ -53,13 +53,13 @@ What it deliberately does **not** do (yet):
 ## Install
 
 ```bash
-pip install agentctl
+pip install aegrail
 ```
 
 > **Note:** the PyPI release lands with `v0.1.0`. Until then, install from source:
 > ```bash
-> git clone https://github.com/arpitcoder/agentctl
-> cd agentctl && pip install -e .
+> git clone https://github.com/arpitcoder/aegrail
+> cd aegrail && pip install -e .
 > ```
 
 Python 3.10+. Zero hard dependencies beyond `pydantic`. Works with any LLM provider (OpenAI, Anthropic, Bedrock, raw HTTP). Works alongside any agent framework (LangChain, LlamaIndex, MCP, custom).
@@ -69,7 +69,7 @@ Python 3.10+. Zero hard dependencies beyond `pydantic`. Works with any LLM provi
 ## Hello world
 
 ```python
-from agentctl import Agent, Budget, AuditSink
+from aegrail import Agent, Budget, AuditSink
 
 agent = Agent(
     identity="support-bot/v1",
@@ -109,8 +109,8 @@ If the budget is exceeded mid-loop, the session raises. The agent cannot talk it
 ## First 60 seconds
 
 ```bash
-git clone https://github.com/arpitcoder/agentctl
-cd agentctl
+git clone https://github.com/arpitcoder/aegrail
+cd aegrail
 pip install -e .
 
 # Happy path — synthetic LLM call, real audit log.
@@ -155,15 +155,15 @@ python examples/openai_demo.py
 
 ## Where it fits next to what you already use
 
-| Tool | What it does | Where agentctl fits |
+| Tool | What it does | Where aegrail fits |
 |---|---|---|
-| **Okta / Auth0 / WorkOS** | User identity, OAuth | Sits underneath — agentctl ties the user identity to per-session agent principals |
-| **Langfuse / Helicone / LangSmith** | LLM observability and prompt management | Complementary — Langfuse is debug-grade, agentctl is enforcement-grade. Run both. |
-| **Lakera / Prompt Security** | Input-layer prompt-injection filtering | Complementary — they guard inputs, agentctl guards actions |
-| **LangChain / LlamaIndex / MCP / OpenAI Agents SDK** | Agent frameworks | agentctl wraps your sessions; you keep your framework |
+| **Okta / Auth0 / WorkOS** | User identity, OAuth | Sits underneath — aegrail ties the user identity to per-session agent principals |
+| **Langfuse / Helicone / LangSmith** | LLM observability and prompt management | Complementary — Langfuse is debug-grade, aegrail is enforcement-grade. Run both. |
+| **Lakera / Prompt Security** | Input-layer prompt-injection filtering | Complementary — they guard inputs, aegrail guards actions |
+| **LangChain / LlamaIndex / MCP / OpenAI Agents SDK** | Agent frameworks | aegrail wraps your sessions; you keep your framework |
 | **OPA / Cedar** | General authorization policy | v0.2 will compose on top of these for action-layer policy |
 
-agentctl is not a replacement for any of these. It is the **runtime layer** they all assume but none of them ship.
+aegrail is not a replacement for any of these. It is the **runtime layer** they all assume but none of them ship.
 
 ---
 
@@ -206,7 +206,7 @@ Designed so you can answer the question every team eventually asks: *what did th
 The three core sinks (`file`, `stdout`, `memory`) cover persistence. Three more cover routing:
 
 ```python
-from agentctl import Agent, AuditSink, Budget
+from aegrail import Agent, AuditSink, Budget
 
 
 def on_event(evt):
@@ -220,7 +220,7 @@ agent = Agent(
     budget=Budget(usd=5.0, wall_seconds=120),
     audit=AuditSink.composite(
         AuditSink.file("./audit.jsonl"),                          # forensic record
-        AuditSink.webhook("https://alerts.example.com/agentctl"), # real-time
+        AuditSink.webhook("https://alerts.example.com/aegrail"), # real-time
         AuditSink.callback(on_event),                             # in-process routing
     ),
 )
@@ -236,7 +236,7 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 
 ## Design principles
 
-- **Wrapper, not framework.** `agentctl` works with your existing stack. We will never ask you to rewrite an agent to use us.
+- **Wrapper, not framework.** `aegrail` works with your existing stack. We will never ask you to rewrite an agent to use us.
 - **Deterministic enforcement.** The system prompt is not a security boundary. The runtime is.
 - **Identity is first-class.** Every event ties to *agent identity + invoking user*. Authorization is the intersection.
 - **Audit is forensic, not debug.** Append-only, structured, replayable. Not log lines.

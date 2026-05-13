@@ -44,7 +44,7 @@ class Agent:
     ) -> None:
         self.identity = validate_agent_identity(identity)
         if not isinstance(budget, Budget):
-            raise TypeError("budget must be an agentctl.Budget instance")
+            raise TypeError("budget must be an aegrail.Budget instance")
         self.budget = budget
         self.audit = audit if audit is not None else StdoutAuditSink()
 

@@ -1,6 +1,6 @@
 # Security policy
 
-agentctl is a runtime governance layer — security bugs in it can compromise
+aegrail is a runtime governance layer — security bugs in it can compromise
 the systems it is meant to protect. We take reports seriously and respond
 quickly.
 
@@ -17,7 +17,7 @@ metadata. Include:
 
 - A clear description of the issue
 - Steps to reproduce
-- The agentctl version affected
+- The aegrail version affected
 - Your assessment of impact
 
 ## What we consider in scope
@@ -33,7 +33,7 @@ metadata. Include:
 ## What we consider out of scope
 
 - The LLM behaving unexpectedly. The system prompt is not a security boundary;
-  agentctl exists *because* it isn't.
+  aegrail exists *because* it isn't.
 - DoS against a single agent process by exhausting its budget.
 - Issues in `examples/` that depend on third-party SDKs (OpenAI, Anthropic,
   etc.) — report those upstream.

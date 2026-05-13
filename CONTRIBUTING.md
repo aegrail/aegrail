@@ -1,12 +1,12 @@
-# Contributing to agentctl
+# Contributing to aegrail
 
-Thanks for considering a contribution. agentctl is intentionally small —
+Thanks for considering a contribution. aegrail is intentionally small —
 three primitives, no more — and the bar for new features is high. The bar
 for bug fixes, docs, and tests is low. Send those freely.
 
 ## Scope
 
-agentctl is the **runtime contract for AI agents in production**. It owns:
+aegrail is the **runtime contract for AI agents in production**. It owns:
 
 - Scoped identity (agent role + per-session principal)
 - Hard budget kill-switches
@@ -24,8 +24,8 @@ If you're unsure whether your idea fits, open an issue first.
 ## Development setup
 
 ```bash
-git clone https://github.com/<your-fork>/agentctl
-cd agentctl
+git clone https://github.com/<your-fork>/aegrail
+cd aegrail
 uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install -e ".[dev]"
@@ -37,9 +37,9 @@ If you don't use `uv`, plain `python -m venv .venv` works too.
 
 ```bash
 pytest                          # run tests
-pytest --cov=agentctl           # with coverage
-ruff check agentctl tests       # lint
-ruff format agentctl tests      # format
+pytest --cov=aegrail           # with coverage
+ruff check aegrail tests       # lint
+ruff format aegrail tests      # format
 ```
 
 CI runs the same commands on every PR across Python 3.10, 3.11, 3.12.
@@ -60,7 +60,7 @@ CI runs the same commands on every PR across Python 3.10, 3.11, 3.12.
 
 Use the bug template in `.github/ISSUE_TEMPLATE/`. Include:
 
-- agentctl version (`python -c "import agentctl; print(agentctl.__version__)"`)
+- aegrail version (`python -c "import aegrail; print(aegrail.__version__)"`)
 - Python version and OS
 - Minimal reproducer
 - Expected vs. actual behavior

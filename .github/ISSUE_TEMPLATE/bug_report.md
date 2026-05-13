@@ -22,7 +22,7 @@ What you expected.
 What happened, including the full traceback.
 
 **Environment**
-- agentctl version: `python -c "import agentctl; print(agentctl.__version__)"`
+- aegrail version: `python -c "import aegrail; print(aegrail.__version__)"`
 - Python version:
 - OS:
 

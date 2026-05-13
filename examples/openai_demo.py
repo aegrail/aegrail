@@ -1,7 +1,7 @@
 """End-to-end demo with the OpenAI Chat Completions API.
 
-Makes a real LLM call and routes it through agentctl. Shows the
-provider-agnostic shape of `record_llm` — agentctl never wraps the
+Makes a real LLM call and routes it through aegrail. Shows the
+provider-agnostic shape of `record_llm` — aegrail never wraps the
 provider SDK; you call it however you like and tell the runtime
 what it cost.
 
@@ -19,9 +19,9 @@ import os
 import sys
 import time
 
-from agentctl import Agent, AuditSink, Budget, BudgetExceeded
+from aegrail import Agent, AuditSink, Budget, BudgetExceeded
 
-# Public OpenAI pricing snapshot. Kept inline; agentctl itself
+# Public OpenAI pricing snapshot. Kept inline; aegrail itself
 # does not bake in a price table — cost calculation is the
 # caller's responsibility.
 PRICES_PER_MTOK = {

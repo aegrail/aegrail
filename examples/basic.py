@@ -10,7 +10,7 @@ numbers so the example has no external dependencies.
 
 from __future__ import annotations
 
-from agentctl import Agent, AuditSink, Budget, BudgetExceeded
+from aegrail import Agent, AuditSink, Budget, BudgetExceeded
 
 
 def refund(order_id: int) -> str:

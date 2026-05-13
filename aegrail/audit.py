@@ -70,7 +70,7 @@ class _SinkBase:
         try:
             self._write(event)
         except Exception as exc:  # pragma: no cover - defensive
-            print(f"[agentctl] audit sink {type(self).__name__} failed: {exc}", file=sys.stderr)
+            print(f"[aegrail] audit sink {type(self).__name__} failed: {exc}", file=sys.stderr)
 
     def _write(self, event: AuditEvent) -> None:  # pragma: no cover
         raise NotImplementedError

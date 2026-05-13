@@ -1,6 +1,6 @@
 import pytest
 
-from agentctl import Agent, AuditSink, Budget, BudgetExceeded, SessionTerminated
+from aegrail import Agent, AuditSink, Budget, BudgetExceeded, SessionTerminated
 
 
 def _agent(**budget_kw) -> tuple[Agent, "MemorySinkType"]:

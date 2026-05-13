@@ -50,7 +50,7 @@ class BudgetState:
 
     Not thread-safe across sessions; each session owns its own state.
     Within a session, increments are expected from the main event loop.
-    If you call agentctl from multiple threads inside one session, wrap
+    If you call aegrail from multiple threads inside one session, wrap
     `add_*` calls in your own lock.
     """
 

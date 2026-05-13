@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import ClassVar
 
-from agentctl.audit import AuditEvent, AuditSink
+from aegrail.audit import AuditEvent, AuditSink
 
 
 def _make_event(event: str = "session_start") -> AuditEvent:
