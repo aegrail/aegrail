@@ -33,4 +33,5 @@ CLAUDE.md
 AGENTS.md
 .aider*
 .cursor*
+.claude/
 dist/
