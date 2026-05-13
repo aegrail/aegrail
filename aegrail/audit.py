@@ -29,6 +29,7 @@ EventType = Literal[
     "session_end",
     "llm_call",
     "tool_call",
+    "tool_denied",
     "budget_exceeded",
     "error",
 ]

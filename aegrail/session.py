@@ -8,18 +8,18 @@ decides what happens at each boundary, not the LLM.
 
 from __future__ import annotations
 
+import sys
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Mapping
 from contextlib import AbstractContextManager
-from typing import Any, TypeVar
+from typing import Any
 
 from .audit import AuditEvent, AuditSink
 from .budget import Budget, BudgetState
-from .exceptions import BudgetExceeded, SessionTerminated
+from .exceptions import BudgetExceeded, SessionTerminated, ToolNotPermitted
 from .identity import new_session_id, session_principal
-
-T = TypeVar("T")
+from .tool import Tool
 
 
 class Session(AbstractContextManager["Session"]):
@@ -29,10 +29,14 @@ class Session(AbstractContextManager["Session"]):
 
         with agent.session(user_id="alice", task="...") as s:
             s.record_llm(model="...", tokens_in=..., tokens_out=..., cost_usd=...)
-            s.call_tool("refund", my_refund_fn, order_id=4521)
+            s.call_tool("refund", order_id=4521)
 
-    Outside the `with` block the session is closed and further
-    calls raise SessionTerminated.
+    The session's `call_tool` looks up the named tool in the agent's
+    registry; calls to unregistered tools or to tools whose `when`
+    predicate denies the args raise ToolNotPermitted deterministically.
+
+    Outside the `with` block the session is closed and further calls
+    raise SessionTerminated.
     """
 
     def __init__(
@@ -42,6 +46,7 @@ class Session(AbstractContextManager["Session"]):
         sink: AuditSink,
         user_id: str | None,
         task: str | None,
+        tools: Mapping[str, Tool] | None,
     ) -> None:
         self.agent_identity = agent_identity
         self.user_id = user_id
@@ -50,6 +55,7 @@ class Session(AbstractContextManager["Session"]):
         self.principal = session_principal(agent_identity, self.session_id)
         self._sink = sink
         self._state = BudgetState(budget)
+        self._tools = tools
         self._closed = False
         self._terminated_reason: str | None = None
 
@@ -106,42 +112,78 @@ class Session(AbstractContextManager["Session"]):
         )
         self._check_budget_or_emit("llm_call")
 
-    def call_tool(
-        self,
-        name: str,
-        fn: Callable[..., T],
-        /,
-        *args: Any,
-        _arg_summary: dict | None = None,
-        **kwargs: Any,
-    ) -> T:
-        """Invoke a tool through the session.
+    def call_tool(self, name: str, /, **kwargs: Any) -> Any:
+        """Invoke a registered tool by name.
 
-        Wraps the call so that:
-          - the tool-call counter advances against the budget
-          - timing is recorded
-          - a structured audit event is emitted whether the call
-            succeeds, raises, or is short-circuited by the budget
-          - budget violations propagate as BudgetExceeded
+        Resolution:
+          1. If the agent has no tool registry, the call is denied
+             (`not_registered`).
+          2. If `name` is not in the registry, the call is denied
+             (`not_registered`).
+          3. If the tool has a `when` predicate, evaluate it against
+             `kwargs`. Returning False denies (`predicate_false`).
+             Raising any exception denies (`predicate_error`).
+          4. Otherwise advance the tool-call counter, check the
+             budget, then invoke `tool.fn(**kwargs)`.
 
-        `_arg_summary` lets the caller log a redacted view of the
-        arguments. If omitted, aegrail emits only the argument
-        *keys* — not their values — to avoid leaking PII into logs.
+        Denied calls do not consume the tool-call budget — they emit
+        a `tool_denied` audit event and raise ToolNotPermitted.
         """
         self._require_open()
+
+        args_summary = _args_keys_only(kwargs)
+
+        if self._tools is None:
+            return self._deny(name, "not_registered", "agent has no registered tools", args_summary)
+
+        tool = self._tools.get(name)
+        if tool is None:
+            return self._deny(
+                name,
+                "not_registered",
+                f"tool {name!r} not registered for {self.agent_identity}",
+                args_summary,
+            )
+
+        if tool.when is not None:
+            try:
+                allowed = bool(tool.when(dict(kwargs)))
+            except Exception as exc:
+                self._emit_denied(
+                    name,
+                    "predicate_error",
+                    args_summary,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                raise ToolNotPermitted(
+                    "predicate_error",
+                    f"predicate raised for tool {name!r}: {type(exc).__name__}: {exc}",
+                    tool_name=name,
+                ) from exc
+            if not allowed:
+                return self._deny(
+                    name,
+                    "predicate_false",
+                    f"args denied by policy for tool {name!r}",
+                    args_summary,
+                )
+
+        payload_args = _redact_or_keys(tool, kwargs, args_summary)
+
         self._state.add_tool_call()
         self._check_budget_or_emit("tool_call")
 
         started = time.monotonic()
         try:
-            result = fn(*args, **kwargs)
+            result = tool.fn(**kwargs)
         except Exception as exc:
             elapsed_ms = (time.monotonic() - started) * 1000
             self._emit(
                 "tool_call",
                 {
                     "tool": name,
-                    "args": _arg_summary or _keys_only(args, kwargs),
+                    "description": tool.description,
+                    "args": payload_args,
                     "ok": False,
                     "error_type": type(exc).__name__,
                     "error_message": str(exc),
@@ -155,7 +197,8 @@ class Session(AbstractContextManager["Session"]):
             "tool_call",
             {
                 "tool": name,
-                "args": _arg_summary or _keys_only(args, kwargs),
+                "description": tool.description,
+                "args": payload_args,
                 "ok": True,
                 "elapsed_ms": round(elapsed_ms, 3),
             },
@@ -203,6 +246,33 @@ class Session(AbstractContextManager["Session"]):
             )
             raise
 
+    def _deny(
+        self,
+        name: str,
+        reason: str,
+        message: str,
+        args_summary: dict,
+    ) -> None:
+        self._emit_denied(name, reason, args_summary)
+        raise ToolNotPermitted(reason, message, tool_name=name)
+
+    def _emit_denied(
+        self,
+        name: str,
+        reason: str,
+        args_summary: dict,
+        *,
+        error: str | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "tool": name,
+            "reason": reason,
+            "args": args_summary,
+        }
+        if error is not None:
+            payload["error"] = error
+        self._emit("tool_denied", payload)
+
     def _emit(self, event: str, payload: dict[str, Any]) -> None:
         try:
             evt = AuditEvent(
@@ -215,10 +285,6 @@ class Session(AbstractContextManager["Session"]):
                 budget=self._state.snapshot(),
             )
         except Exception as exc:
-            # Constructing an event should never fail; if it does,
-            # write a low-level error to stderr but don't raise.
-            import sys
-
             print(
                 f"[aegrail] failed to build audit event ({event}): {exc}\n{traceback.format_exc()}",
                 file=sys.stderr,
@@ -227,11 +293,20 @@ class Session(AbstractContextManager["Session"]):
         self._sink.emit(evt)
 
 
-def _keys_only(args: tuple, kwargs: dict) -> dict:
-    """Return a redacted argument summary.
+def _args_keys_only(kwargs: dict) -> dict:
+    """PII-safe default: log kwarg keys, never values."""
+    return {"kwarg_keys": sorted(kwargs.keys())}
 
-    Positional args are summarised as a count; keyword args expose
-    their keys but not their values. Callers that want richer
-    summaries can pass `_arg_summary` explicitly.
-    """
-    return {"positional_count": len(args), "kwarg_keys": sorted(kwargs.keys())}
+
+def _redact_or_keys(tool: Tool, kwargs: dict, fallback: dict) -> dict:
+    """Apply the tool's redactor if present; fall back to keys-only on error."""
+    if tool.redact is None:
+        return fallback
+    try:
+        return dict(tool.redact(dict(kwargs)))
+    except Exception as exc:
+        print(
+            f"[aegrail] tool {tool.name!r} redactor failed: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return fallback

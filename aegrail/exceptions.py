@@ -28,3 +28,29 @@ class BudgetExceeded(AegrailError):
 
 class SessionTerminated(AegrailError):
     """Raised when a caller attempts to use a session that has already ended."""
+
+
+class ToolNotPermitted(AegrailError):
+    """Raised when a tool call is denied by the agent's policy.
+
+    `reason` is a short machine-readable string:
+      'not_registered'    — name not in the agent's tool registry, or
+                            the agent has no registry at all.
+      'predicate_false'   — the tool's `when` predicate returned False.
+      'predicate_error'   — the tool's `when` predicate raised; the
+                            wrapped exception is the `__cause__`.
+
+    `tool_name` is the name the caller attempted to invoke (kept on the
+    exception even when the tool is unregistered, so callers branching
+    on it have something to log).
+    """
+
+    def __init__(
+        self,
+        reason: str,
+        message: str,
+        tool_name: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.tool_name = tool_name

@@ -1,11 +1,18 @@
 import pytest
 
-from aegrail import Agent, AuditSink, Budget, BudgetExceeded, SessionTerminated
+from aegrail import (
+    Agent,
+    AuditSink,
+    Budget,
+    BudgetExceeded,
+    SessionTerminated,
+    Tool,
+)
 
 
-def _agent(**budget_kw) -> tuple[Agent, "MemorySinkType"]:
+def _agent(*, tools=None, **budget_kw) -> tuple[Agent, "MemorySinkType"]:
     sink = AuditSink.memory()
-    a = Agent(identity="bot/v1", budget=Budget(**budget_kw), audit=sink)
+    a = Agent(identity="bot/v1", budget=Budget(**budget_kw), audit=sink, tools=tools)
     return a, sink
 
 
@@ -66,62 +73,42 @@ class TestLLMRecording:
         assert end_event.payload["reason"].startswith("budget_exceeded:")
 
 
-class TestToolCall:
-    def test_records_success(self) -> None:
-        agent, sink = _agent(usd=1.0, max_tool_calls=5)
-
-        def refund(order_id: int) -> str:
-            return f"refunded {order_id}"
-
-        with agent.session() as s:
-            result = s.call_tool("refund", refund, order_id=4521)
-
-        assert result == "refunded 4521"
-        tool_events = [e for e in sink.events if e.event == "tool_call"]
-        assert len(tool_events) == 1
-        assert tool_events[0].payload["ok"] is True
-        # Default redaction: keys only, no values.
-        assert tool_events[0].payload["args"] == {
-            "positional_count": 0,
-            "kwarg_keys": ["order_id"],
-        }
+class TestToolCallSessionIntegration:
+    """Session-level concerns for call_tool. Tool model behaviour itself lives in test_tool.py."""
 
     def test_records_tool_failure_then_reraises(self) -> None:
-        agent, sink = _agent(usd=1.0, max_tool_calls=5)
-
         def broken() -> None:
             raise RuntimeError("boom")
 
+        agent, sink = _agent(
+            usd=1.0,
+            max_tool_calls=5,
+            tools={"broken": Tool(name="broken", fn=broken)},
+        )
+
         with pytest.raises(RuntimeError), agent.session() as s:
-            s.call_tool("broken", broken)
+            s.call_tool("broken")
 
         tool_events = [e for e in sink.events if e.event == "tool_call"]
         assert tool_events[0].payload["ok"] is False
         assert tool_events[0].payload["error_type"] == "RuntimeError"
 
     def test_tool_call_budget_overage(self) -> None:
-        agent, _ = _agent(usd=10.0, max_tool_calls=2)
-
-        def noop() -> None:
-            return None
+        agent, _ = _agent(
+            usd=10.0,
+            max_tool_calls=2,
+            tools={
+                "a": Tool(name="a", fn=lambda: None),
+                "b": Tool(name="b", fn=lambda: None),
+                "c": Tool(name="c", fn=lambda: None),
+            },
+        )
 
         with pytest.raises(BudgetExceeded) as excinfo, agent.session() as s:
-            s.call_tool("a", noop)
-            s.call_tool("b", noop)
-            s.call_tool("c", noop)
+            s.call_tool("a")
+            s.call_tool("b")
+            s.call_tool("c")
         assert excinfo.value.reason == "tool_calls"
-
-    def test_custom_arg_summary_overrides_redaction(self) -> None:
-        agent, sink = _agent(usd=1.0, max_tool_calls=5)
-
-        def t(**kw) -> None:
-            return None
-
-        with agent.session() as s:
-            s.call_tool("t", t, _arg_summary={"order_id": 4521, "amount_cents": 100}, foo="bar")
-
-        tool_events = [e for e in sink.events if e.event == "tool_call"]
-        assert tool_events[0].payload["args"] == {"order_id": 4521, "amount_cents": 100}
 
 
 class TestRecursion:
