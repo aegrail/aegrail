@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-13
+
+### Changed
+
+- **Build hygiene.** `[tool.hatch.build.targets.sdist]` now declares an
+  explicit `include` manifest instead of a denylist. The source
+  distribution ships exactly what the project documents shipping
+  (`aegrail/`, `examples/`, `tests/`, top-level docs, `LICENSE`,
+  `pyproject.toml`, `.gitignore`, `.github/`) and nothing else. Local
+  dev-tool configuration files no longer require explicit mention in
+  the public build manifest.
+- **`.gitignore`** narrowed to canonical Python / OS / venv patterns
+  plus secret-file globs. Per-developer editor and tool configuration
+  is now handled out-of-band via `.git/info/exclude`, which is
+  intentionally not tracked and never reaches the published artifact.
+
+### Project
+
+- 75 tests. Ruff clean. No API changes from 0.2.0.
+
 ## [0.2.0] — 2026-05-13
 
 ### Added
@@ -111,7 +131,8 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1
 [0.2.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.0
 [0.1.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.1
 [0.1.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.0

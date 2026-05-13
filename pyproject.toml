@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegrail"
-version = "0.2.0"
+version = "0.2.1"
 description = "The runtime contract for AI agents in production."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,14 +43,18 @@ Issues = "https://github.com/arpitcoder/aegrail/issues"
 packages = ["aegrail"]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    ".claude",
-    "CLAUDE.md",
-    "AGENTS.md",
-    "audit*.jsonl",
-    "*.log",
-    ".env",
-    ".env.*",
+include = [
+    "/aegrail",
+    "/examples",
+    "/tests",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
+    "/SECURITY.md",
+    "/LICENSE",
+    "/pyproject.toml",
+    "/.gitignore",
+    "/.github",
 ]
 
 [tool.ruff]

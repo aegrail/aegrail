@@ -29,9 +29,4 @@ audit*.jsonl
 *.pem
 *.key
 secrets/
-CLAUDE.md
-AGENTS.md
-.aider*
-.cursor*
-.claude/
 dist/
