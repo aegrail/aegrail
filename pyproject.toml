@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegrail"
-version = "0.1.1"
+version = "0.2.0"
 description = "The runtime contract for AI agents in production."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Arpit Nigam", email = "arpit.maverick.nigam@gmail.com" }]
-maintainers = [{ name = "Arpit Nigam", email = "arpit.maverick.nigam@gmail.com" }]
+authors = [{ name = "Arpit Nigam", email = "arpit.nigam.maverick@gmail.com" }]
+maintainers = [{ name = "Arpit Nigam", email = "arpit.nigam.maverick@gmail.com" }]
 keywords = ["ai", "agents", "llm", "governance", "runtime", "audit", "security"]
 classifiers = [
     "Development Status :: 4 - Beta",

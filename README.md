@@ -33,16 +33,16 @@ The infrastructure stack hasn't caught up. That's why your agent looped for 63 h
 
 ---
 
-## What it does (v0)
+## What it does
 
-Three primitives. Nothing else.
+Four primitives. Nothing else.
 
 1. **Scoped identity** — every agent run gets a session-bound principal. No shared API keys. Audit logs are identity-linked from line one.
-2. **Hard budget kill-switches** — cost, tokens, wall-clock, recursion depth. The runtime stops the agent. Not the system prompt. Not the LLM. The runtime.
-3. **Structured audit log** — identity-linked, append-only, replayable record of every prompt, tool call, and outcome. Forensic-grade, not debug-grade.
+2. **Hard budget kill-switches** — cost, tokens, wall-clock, recursion depth, tool calls. The runtime stops the agent. Not the system prompt. Not the LLM. The runtime.
+3. **Structured audit log** — identity-linked, append-only, replayable record of every prompt, tool call, denial, and outcome. Forensic-grade, not debug-grade.
+4. **Per-agent tool ACL _(v0.2)_** — each agent gets an explicit registry of tools it may invoke, with optional argument predicates. Calls outside the registry, or with denied args, raise `ToolNotPermitted` deterministically. Maps to **OWASP Top 10 for Agentic Applications**: **ASI02 (Tool Misuse)** and **ASI03 (Identity & Privilege Abuse)**.
 
 What it deliberately does **not** do (yet):
-- Policy engine (v0.2)
 - Egress allowlist proxy (v0.3)
 - Approval gates (v0.4)
 - Hosted dashboard (v1.0, paid)
@@ -56,7 +56,7 @@ What it deliberately does **not** do (yet):
 pip install aegrail
 ```
 
-> **Note:** the PyPI release lands with `v0.1.0`. Until then, install from source:
+> **Note:** the first PyPI release will be `v0.2.0`. Until then, install from source:
 > ```bash
 > git clone https://github.com/arpitcoder/aegrail
 > cd aegrail && pip install -e .
@@ -69,17 +69,25 @@ Python 3.10+. Zero hard dependencies beyond `pydantic`. Works with any LLM provi
 ## Hello world
 
 ```python
-from aegrail import Agent, Budget, AuditSink
+from aegrail import Agent, AuditSink, Budget, Tool
+
+def refund(order_id: int) -> str:
+    # Your real tool — could be an API call, DB write, anything.
+    return f"refunded order {order_id}"
 
 agent = Agent(
     identity="support-bot/v1",
     budget=Budget(usd=5.0, tokens=100_000, wall_seconds=120, max_tool_calls=10),
     audit=AuditSink.file("./audit.jsonl"),
+    tools={
+        "refund_api.refund": Tool(
+            name="refund_api.refund",
+            fn=refund,
+            description="Issue a refund for a customer order.",
+            when=lambda args: isinstance(args.get("order_id"), int),
+        ),
+    },
 )
-
-def refund(order_id: int) -> str:
-    # Your real tool — could be an API call, DB write, anything.
-    return f"refunded order {order_id}"
 
 with agent.session(user_id="alice", task="refund order #4521") as s:
     # 1. Call your LLM however you like (OpenAI SDK, Anthropic SDK, raw HTTP).
@@ -91,18 +99,20 @@ with agent.session(user_id="alice", task="refund order #4521") as s:
         cost_usd=0.012,
     )
 
-    # 2. Run a tool through the session — counted against the budget, audited.
-    result = s.call_tool("refund_api.refund", refund, order_id=4521)
+    # 2. Run a registered tool through the session — looked up by name,
+    #    arg predicate enforced, counted against the budget, audited.
+    result = s.call_tool("refund_api.refund", order_id=4521)
 ```
 
 That's it. The session:
 
 - Generates a short-lived per-session principal (`support-bot/v1@sess_<ms>_<rand>`)
 - Tracks tokens and dollars against the budget; raises `BudgetExceeded` deterministically when hit
-- Emits a structured event for every LLM call and tool invocation, identity-linked, append-only
+- Emits a structured event for every LLM call, tool invocation, and policy denial — identity-linked, append-only
+- Refuses tools the agent is not registered for, or tool args that fail the `when` predicate — raising `ToolNotPermitted` deterministically (mapped to OWASP ASI02 / ASI03)
 - Stops the agent if wall-clock, recursion, or tool-call limits are hit, no matter what the LLM "decides"
 
-If the budget is exceeded mid-loop, the session raises. The agent cannot talk its way out of it.
+If the budget is exceeded mid-loop, or a tool is denied, the session raises. The agent cannot talk its way out of it.
 
 ---
 
@@ -144,12 +154,84 @@ Working end-to-end demos with live LLM calls:
 - [`examples/anthropic_demo.py`](examples/anthropic_demo.py) — Anthropic Messages
 - [`examples/basic.py`](examples/basic.py) — provider-free walkthrough
 - [`examples/budget_kill.py`](examples/budget_kill.py) — the runtime stopping a runaway loop
+- [`examples/multi_agent_acl.py`](examples/multi_agent_acl.py) — _(v0.2)_ FinOps and Architect agents in one process, with cross-agent tool denial enforced deterministically
 
 ```bash
 pip install openai
 export OPENAI_API_KEY=sk-...
 python examples/openai_demo.py
 ```
+
+---
+
+## Tool ACL — v0.2
+
+Each `Agent` carries an explicit catalogue of tools it is permitted to invoke. Two agents in the same process with disjoint registries cannot cross-invoke each other's tools, no matter what the LLM is instructed to do.
+
+```python
+from aegrail import Agent, AuditSink, Budget, Tool, ToolNotPermitted
+
+finops = Agent(
+    identity="finops/v1",
+    budget=Budget(usd=1.0, max_tool_calls=10),
+    audit=AuditSink.stdout(),
+    tools={
+        "cost_report": Tool(
+            name="cost_report",
+            fn=lambda period: f"AWS spend {period}: $84,201.47",
+            when=lambda args: args.get("period") in {"mtd", "qtd", "ytd"},
+        ),
+    },
+)
+
+architect = Agent(
+    identity="architect/v1",
+    budget=Budget(usd=1.0, max_tool_calls=10),
+    audit=AuditSink.stdout(),
+    tools={
+        "deploy_infra": Tool(
+            name="deploy_infra",
+            fn=lambda env: f"deployed infra to {env}",
+            when=lambda args: args.get("env") in {"staging", "prod"},
+        ),
+    },
+)
+
+with finops.session(user_id="alice") as s:
+    try:
+        s.call_tool("deploy_infra", env="prod")  # not in finops's registry
+    except ToolNotPermitted as exc:
+        print(exc.reason)   # 'not_registered'
+        print(exc.tool_name)  # 'deploy_infra'
+```
+
+Three denial reasons surface on `ToolNotPermitted.reason`:
+
+- `'not_registered'` — the tool name isn't in this agent's registry (ASI03).
+- `'predicate_false'` — the tool's `when(args)` predicate returned `False` (ASI02).
+- `'predicate_error'` — the predicate raised; the original exception is on `__cause__`.
+
+Every denial emits a `tool_denied` audit event with the agent's identity, principal, and a snapshot of the budget — so denied attempts are forensically queryable, not just thrown away.
+
+Tools also accept an optional `redact(args) -> dict` to control what shows up in the audit payload's `args` field. The default emits **keys only**, never values.
+
+---
+
+## Where this sits — defense-in-depth at the capability layer
+
+aegrail's tool ACL is one of three complementary layers. Each protects against a different threat; none replaces the others.
+
+| Layer | Enforces | Threat it stops | aegrail role |
+|---|---|---|---|
+| **Network egress (L3/L4)** | Which hosts/ports the pod can reach | An agent dials an unapproved domain | _Out of scope today_ — use Kubernetes NetworkPolicy, Cilium, an egress proxy. v0.3 will add a proxy. |
+| **Tool ACL (L7 capability)** | Which named callables an identity may invoke, and with what args | A FinOps agent invokes a deploy tool because the LLM was prompt-injected to | **This is v0.2.** |
+| **Process isolation** | What the OS lets the agent's process do | A compromised agent reads another agent's memory or files | _Out of scope_ — use containers, gVisor, Firecracker, separate pods. |
+
+Two agents in the same pod look identical to network policy: same source IP, same kube ServiceAccount, same outbound CIDR. The L3/L4 layer cannot tell them apart, which is why functional limits — *what tool a given identity may call* — must live at L7. That's what aegrail enforces, deterministically, in Python at the runtime boundary.
+
+**The discipline this requires.** aegrail only governs actions that flow through `session.call_tool(...)`. An agent that imports `requests` and POSTs to a banking API directly is invisible to the runtime: no audit event, no ACL check, no budget update. The contract is to register every sensitive action as a `Tool` and invoke it through the session. The library cannot prevent off-path bypasses without process-level isolation, which is intentionally out of scope.
+
+Use aegrail v0.2 *with* network policy and process isolation, not as a substitute. Defense-in-depth only works when the layers compose.
 
 ---
 
@@ -161,7 +243,7 @@ python examples/openai_demo.py
 | **Langfuse / Helicone / LangSmith** | LLM observability and prompt management | Complementary — Langfuse is debug-grade, aegrail is enforcement-grade. Run both. |
 | **Lakera / Prompt Security** | Input-layer prompt-injection filtering | Complementary — they guard inputs, aegrail guards actions |
 | **LangChain / LlamaIndex / MCP / OpenAI Agents SDK** | Agent frameworks | aegrail wraps your sessions; you keep your framework |
-| **OPA / Cedar** | General authorization policy | v0.2 will compose on top of these for action-layer policy |
+| **OPA / Cedar** | General authorization policy | Complementary — aegrail v0.2 ships per-agent tool ACL in Python; a future release may compose with OPA/Cedar for org-wide policy |
 
 aegrail is not a replacement for any of these. It is the **runtime layer** they all assume but none of them ship.
 
@@ -181,7 +263,8 @@ Every line of `audit.jsonl` is one event. Identity-linked, append-only, JSON.
   "event": "tool_call",
   "payload": {
     "tool": "refund_api.refund",
-    "args": {"order_id": 4521},
+    "description": "Issue a refund for a customer order.",
+    "args": {"kwarg_keys": ["order_id"]},
     "ok": true,
     "elapsed_ms": 0.42
   },
@@ -247,17 +330,18 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 
 ## Status
 
-**v0.1 — early. Stable surface, narrow scope.** The three primitives shipped here are the foundation; expect them to remain backwards-compatible. v0.2 adds a policy engine, v0.3 adds the egress allowlist proxy.
+**v0.2 — narrow scope, growing surface.** Identity, budget, audit, and now the per-agent tool ACL. v0.3 adds the egress allowlist proxy; v0.4 adds approval gates.
 
-48 tests, 94% line coverage, ruff clean. CI green on Python 3.10, 3.11, 3.12.
+75 tests, ruff clean. CI green on Python 3.10, 3.11, 3.12.
 
 ---
 
 ## Roadmap
 
 - **v0.1** — scoped identity, budget kill-switches, audit log _(shipped)_
-- **v0.1.x** — provider helpers (OpenAI/Anthropic/litellm), async/await, redaction rules
-- **v0.2** — action-level policy DSL (`agent X may call tool Y only with args Z`)
+- **v0.1.x** — alerting sinks (callback/webhook/composite) _(shipped)_
+- **v0.2** — per-agent tool ACL with arg predicates (OWASP ASI02 + ASI03) _(shipped)_
+- **v0.2.x** — provider helpers (OpenAI/Anthropic/litellm), async/await
 - **v0.3** — egress allowlist proxy (network-level enforcement)
 - **v0.4** — approval gates for irreversible actions
 - **v1.0** — hosted control plane (paid)

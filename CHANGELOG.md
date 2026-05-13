@@ -6,6 +6,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-13
+
+### Added
+
+- **`Tool`** — a pydantic model declaring a callable the agent is
+  authorised to invoke. Carries an optional `when(args) -> bool`
+  predicate (denies on `False` or on raise), an optional
+  `redact(args) -> dict` for per-tool audit redaction, and a
+  human-readable `description` that surfaces into audit payloads.
+- **`Agent.tools`** — agents now accept a `tools: Mapping[str, Tool]`
+  registry at construction. Keys must match their `Tool.name`. Stored
+  as an immutable `MappingProxyType`; cannot be swapped at runtime.
+- **`ToolNotPermitted`** — new exception with three machine-readable
+  reasons: `'not_registered'`, `'predicate_false'`, `'predicate_error'`.
+- **`tool_denied` audit event** — every denial emits a distinct event
+  type (separate from `tool_call`) so denials are forensically
+  queryable. Denied calls do not consume the tool-call budget.
+- **`examples/multi_agent_acl.py`** — FinOps and Architect agents in
+  one process. The FinOps session cannot invoke the Architect's
+  `deploy_infra` tool, demonstrating OWASP ASI03 enforcement.
+
+### Changed (breaking)
+
+- **`Session.call_tool` signature.** Was
+  `call_tool(name, fn, *args, _arg_summary=None, **kwargs)`; now
+  `call_tool(name, /, **kwargs)`. The callable is looked up from the
+  agent's registry — callers no longer pass it. Positional args are
+  no longer supported (LLM tool-calls arrive as JSON objects, which
+  map naturally to kwargs).
+- **Agents without `tools=` are strict.** Any `call_tool(...)` on an
+  agent constructed without a tool registry raises
+  `ToolNotPermitted('not_registered', ...)`. v0.2 forces opt-in to
+  the ACL rather than silently allowing arbitrary calls.
+- **`_arg_summary` kwarg removed.** Replaced by the `redact`
+  parameter on the `Tool` definition itself.
+
+### Mapping to OWASP Top 10 for Agentic Applications
+
+- **ASI02 (Tool Misuse)** — the registry caps the callable set; the
+  `when` predicate caps the args. Both enforced in deterministic
+  Python at the runtime boundary, not via the LLM.
+- **ASI03 (Identity & Privilege Abuse)** — tool registries are bound
+  to an Agent's identity. Two agents in the same process with
+  disjoint registries cannot cross-invoke each other's tools.
+
+### Project
+
+- 75 tests. Ruff clean. CI green on Python 3.10/3.11/3.12.
+- No new runtime dependencies.
+
 ## [0.1.1] — 2026-05-12
 
 ### Added
@@ -61,6 +111,7 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.0
 [0.1.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.1
 [0.1.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.0
