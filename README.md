@@ -272,5 +272,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY
 
 ## License
 
-Apache 2.0.
+Apache License 2.0. See [LICENSE](LICENSE) for full terms.
+
+Copyright © 2026 [Arpit Nigam](https://github.com/arpitcoder).
+
+`aegrail` is permissively licensed for commercial and non-commercial use. Contributions are welcome under the same license — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
