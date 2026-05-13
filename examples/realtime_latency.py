@@ -13,7 +13,7 @@ from __future__ import annotations
 import statistics
 import time
 
-from aegrail import Agent, AuditSink, Budget
+from aegrail import Agent, AuditSink, Budget, Tool
 
 
 def noop() -> None:
@@ -25,6 +25,7 @@ def main() -> None:
         identity="realtime-bot/v1",
         budget=Budget(usd=10.0, wall_seconds=60, max_tool_calls=100_000),
         audit=AuditSink.memory(),
+        tools={"noop": Tool(name="noop", fn=noop)},
     )
 
     samples_record_llm: list[int] = []
@@ -43,7 +44,7 @@ def main() -> None:
 
         for _ in range(2000):
             t0 = time.perf_counter_ns()
-            s.call_tool("noop", noop)
+            s.call_tool("noop")
             samples_call_tool.append(time.perf_counter_ns() - t0)
 
         for _ in range(2000):
