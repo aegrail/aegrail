@@ -13,6 +13,7 @@ deterministic Python at the runtime boundary.
 """
 
 from .agent import Agent
+from .async_session import AsyncSession
 from .audit import (
     AuditEvent,
     AuditSink,
@@ -33,11 +34,12 @@ from .exceptions import (
 from .session import Session
 from .tool import Tool
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 __all__ = [
     "AegrailError",
     "Agent",
+    "AsyncSession",
     "AuditEvent",
     "AuditSink",
     "Budget",

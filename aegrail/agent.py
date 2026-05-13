@@ -13,6 +13,7 @@ import contextlib
 from collections.abc import Mapping
 from types import MappingProxyType
 
+from .async_session import AsyncSession
 from .audit import AuditSink, StdoutAuditSink
 from .budget import Budget
 from .identity import validate_agent_identity
@@ -66,8 +67,30 @@ class Agent:
         user_id: str | None = None,
         task: str | None = None,
     ) -> Session:
-        """Open a new session. Use as a context manager."""
+        """Open a new sync session. Use as a context manager."""
         return Session(
+            agent_identity=self.identity,
+            budget=self.budget,
+            sink=self.audit,
+            user_id=user_id,
+            task=task,
+            tools=self.tools,
+        )
+
+    def async_session(
+        self,
+        *,
+        user_id: str | None = None,
+        task: str | None = None,
+    ) -> AsyncSession:
+        """Open a new async session. Use as an async context manager.
+
+        Adds one property over `session()`: when `budget.wall_seconds` is
+        set, the runtime enforces the timeout mid-tool-call via
+        asyncio.wait_for. Sync `session()` can only check at event
+        boundaries.
+        """
+        return AsyncSession(
             agent_identity=self.identity,
             budget=self.budget,
             sink=self.audit,

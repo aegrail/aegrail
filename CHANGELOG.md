@@ -6,6 +6,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-05-13
+
+### Added
+
+- **`AsyncSession`** — async variant of `Session`, constructed via
+  `Agent.async_session(*, user_id=None, task=None)`. Supports
+  `async with`, `await s.call_tool(...)`, `await s.record_llm(...)`,
+  `await s.check_budget()`, `await s.enter_recursion()` /
+  `await s.exit_recursion()`. Mirrors the sync API; same exception
+  types (`BudgetExceeded`, `ToolNotPermitted`, `SessionTerminated`)
+  and same audit events.
+- **Hard `wall_seconds` enforcement mid-tool-call.** When a `Budget`
+  declares `wall_seconds`, every tool invocation inside an
+  `AsyncSession` runs under `asyncio.wait_for(...,
+  timeout=remaining)`. If the call hangs past the remaining budget,
+  the runtime raises `BudgetExceeded('wall_seconds')` deterministically
+  rather than waiting for the call to return. Sync `Session` could
+  only enforce at event boundaries; this is the load-bearing
+  improvement.
+- **Sync + async tool dispatch.** `Tool.fn` may be `async def` or
+  regular `def`. The runtime detects via `inspect.iscoroutinefunction`;
+  sync functions are dispatched via `asyncio.to_thread` so the
+  `wall_seconds` timeout still applies at the asyncio level.
+  Documented caveat: CPython cannot kill the underlying thread, so
+  a slow sync function continues running in the background until it
+  naturally returns. For hard timeout guarantees, write tools as
+  `async def`.
+- **`examples/async_demo.py`** — async twin of
+  `examples/prompt_injection_demo.py`. Same adversarial-customer-message
+  scenario, run through `agent.async_session(...)` against local Ollama
+  `llama3.1:8b`. Demonstrates both ASI02 + ASI03 denials firing under
+  async dispatch.
+
+### Project
+
+- 91 tests (75 sync + 16 new async). Ruff clean. No API breakage,
+  fully additive on top of 0.2.1.
+- New dev dependency: `pytest-asyncio>=0.21` (only in `[dev]` extras;
+  no runtime dependency added).
+- Audit sinks remain synchronous. For high-throughput async hot paths,
+  prefer `composite(file, callback(queue.put_nowait))` and drain the
+  queue in a background task; avoid the webhook sink in the agent's
+  hot path.
+
+### Out of scope (intentionally)
+
+- Async `Tool.when` predicates. Predicates must remain fast and
+  non-IO; for policy-service lookups, do them inside `fn`.
+- Async audit sinks (would add an aiohttp / httpx runtime dep,
+  which the project does not take).
+- Trio support. Asyncio only; trio users can bridge via `anyio` in
+  their own code if desired.
+
 ## [0.2.1] — 2026-05-13
 
 ### Changed
@@ -136,7 +189,8 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1
 [0.2.0]: # withdrawn from PyPI on 2026-05-13 — superseded by 0.2.1
 [0.1.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.1

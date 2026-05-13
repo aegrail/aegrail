@@ -116,6 +116,42 @@ If the budget is exceeded mid-loop, or a tool is denied, the session raises. The
 
 ---
 
+## Async — `AsyncSession` (v0.2.2)
+
+For agents running on `asyncio` (FastAPI, MCP servers, anything using the OpenAI/Anthropic async clients), use `agent.async_session(...)`:
+
+```python
+import asyncio
+from aegrail import Agent, AuditSink, Budget, Tool
+
+async def real_refund(order_id: int) -> str:
+    # any async work here — DB call, async HTTP, etc.
+    return f"refunded {order_id}"
+
+agent = Agent(
+    identity="support-bot/v1",
+    budget=Budget(usd=5.0, wall_seconds=30, max_tool_calls=10),
+    audit=AuditSink.file("./audit.jsonl"),
+    tools={"refund": Tool(name="refund", fn=real_refund)},
+)
+
+async def main() -> None:
+    async with agent.async_session(user_id="alice") as s:
+        await s.record_llm(model="gpt-4", tokens_in=100, tokens_out=200, cost_usd=0.01)
+        result = await s.call_tool("refund", order_id=4521)
+        print(result)
+
+asyncio.run(main())
+```
+
+The async surface mirrors the sync one — same exceptions, same audit events, same tool ACL semantics — and adds one load-bearing property: **`wall_seconds` is enforced mid-tool-call** via `asyncio.wait_for`. If a tool call hangs past the remaining wall-clock budget, the runtime raises `BudgetExceeded('wall_seconds')` deterministically, rather than waiting for the call to return. Sync `Session` could only check at event boundaries.
+
+Tool functions can be sync or async — the runtime detects via `inspect.iscoroutinefunction` and dispatches accordingly. Sync functions are wrapped in `asyncio.to_thread(...)` so the timeout still applies at the asyncio level.
+
+Full async demo (against local Ollama, no API key): [`examples/async_demo.py`](examples/async_demo.py).
+
+---
+
 ## First 60 seconds
 
 ```bash
@@ -332,7 +368,7 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 
 **v0.2 — narrow scope, growing surface.** Identity, budget, audit, and now the per-agent tool ACL. v0.3 adds the egress allowlist proxy; v0.4 adds approval gates.
 
-75 tests, ruff clean. CI green on Python 3.10, 3.11, 3.12.
+91 tests (75 sync + 16 async), ruff clean. CI green on Python 3.10, 3.11, 3.12.
 
 ---
 
@@ -341,7 +377,8 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 - **v0.1** — scoped identity, budget kill-switches, audit log _(shipped)_
 - **v0.1.x** — alerting sinks (callback/webhook/composite) _(shipped)_
 - **v0.2** — per-agent tool ACL with arg predicates (OWASP ASI02 + ASI03) _(shipped)_
-- **v0.2.x** — provider helpers (OpenAI/Anthropic/litellm), async/await
+- **v0.2.2** — `AsyncSession` with hard `wall_seconds` enforcement mid-tool-call _(shipped)_
+- **v0.2.x** — provider helpers (OpenAI/Anthropic/litellm)
 - **v0.3** — egress allowlist proxy (network-level enforcement)
 - **v0.4** — approval gates for irreversible actions
 - **v1.0** — hosted control plane (paid)
