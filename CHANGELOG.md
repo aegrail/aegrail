@@ -26,7 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 75 tests. Ruff clean. No API changes from 0.2.0.
 
-## [0.2.0] — 2026-05-13
+## [0.2.0] — 2026-05-13 (withdrawn)
+
+> Withdrawn from PyPI on 2026-05-13. Superseded by [0.2.1]; every
+> feature listed below ships unchanged in 0.2.1. The git tag `v0.2.0`
+> has been removed; the commits remain visible in `main`'s history
+> as part of the linear path to `v0.2.1`. Do not pin to `0.2.0`.
 
 ### Added
 
@@ -133,6 +138,6 @@ Initial public release. Three primitives, deliberately.
 
 [Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.1...HEAD
 [0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1
-[0.2.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.0
+[0.2.0]: # withdrawn from PyPI on 2026-05-13 — superseded by 0.2.1
 [0.1.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.1
 [0.1.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.0
