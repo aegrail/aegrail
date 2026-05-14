@@ -51,6 +51,7 @@ include = [
     "/README.md",
     "/CHANGELOG.md",
     "/COMPLIANCE.md",
+    "/ARCHITECTURE.md",
     "/CONTRIBUTING.md",
     "/SECURITY.md",
     "/LICENSE",
