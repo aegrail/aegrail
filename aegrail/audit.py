@@ -14,6 +14,8 @@ sink should never break the agent.
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import json
 import os
 import sys
 import threading
@@ -44,6 +46,14 @@ class AuditEvent(BaseModel):
 
     Fields are flat for log-ingestion friendliness. The `payload` dict
     carries event-specific detail.
+
+    Tamper-evidence (v0.2.3): every emitted event carries `prev_hash`
+    (the SHA-256 of the previous event in the chain, or `None` for the
+    genesis event) and `event_hash` (the SHA-256 of this event's own
+    serialized body, including its prev_hash). Any post-hoc edit to a
+    historical event invalidates the chain from that point forward and
+    is detected by `verify_chain()`. The sink computes and sets both
+    fields on emit; callers don't.
     """
 
     ts: str = Field(default_factory=_utc_now_iso)
@@ -54,9 +64,42 @@ class AuditEvent(BaseModel):
     event: EventType
     payload: dict[str, Any] = Field(default_factory=dict)
     budget: dict[str, Any] = Field(default_factory=dict)
+    prev_hash: str | None = None
+    event_hash: str | None = None
 
     def to_json_line(self) -> str:
         return self.model_dump_json()
+
+
+def compute_event_hash(event: AuditEvent, prev_hash: str | None) -> str:
+    """Compute the SHA-256 hash for an AuditEvent in the chain.
+
+    The hash covers every field of the event except `event_hash` itself
+    (chicken-and-egg), and explicitly includes `prev_hash` so that any
+    re-ordering of events also invalidates the chain.
+    """
+    body = event.model_dump(exclude={"event_hash"})
+    body["prev_hash"] = prev_hash
+    payload = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def verify_chain(events: list[AuditEvent]) -> tuple[bool, int]:
+    """Verify the tamper-evident chain over a list of audit events.
+
+    Returns `(valid, first_bad_index)`. If the chain verifies end-to-end,
+    `(True, -1)`. If any event's recomputed hash disagrees with what's
+    stored on the event, returns `(False, i)` where `i` is the first
+    failing index. Auditors and ops teams should run this on archived
+    audit logs to confirm no tampering.
+    """
+    prev: str | None = None
+    for i, evt in enumerate(events):
+        expected = compute_event_hash(evt, prev_hash=prev)
+        if evt.event_hash != expected:
+            return False, i
+        prev = evt.event_hash
+    return True, -1
 
 
 class _SinkBase:
@@ -65,10 +108,31 @@ class _SinkBase:
     Concrete sinks override `_write` and (optionally) `close`. The
     `emit` path is wrapped so that any internal error is logged to
     stderr and swallowed — a broken sink must never break the agent.
+
+    Each sink instance maintains its own chain state in `_last_hash`,
+    used to compute `prev_hash`/`event_hash` for each emitted event.
+    If an event arrives with `event_hash` already set (e.g. it was
+    chained by an outer composite), the sink advances its own chain
+    state to match instead of recomputing.
     """
+
+    _last_hash: str | None = None
+
+    def __init__(self) -> None:
+        self._chain_lock = threading.Lock()
 
     def emit(self, event: AuditEvent) -> None:
         try:
+            with self._chain_lock:
+                if event.event_hash is None:
+                    prev = self._last_hash
+                    h = compute_event_hash(event, prev_hash=prev)
+                    event = event.model_copy(update={"prev_hash": prev, "event_hash": h})
+                    self._last_hash = h
+                else:
+                    # Hash was set upstream (composite or test fixture); just
+                    # advance our own chain state so subsequent events link.
+                    self._last_hash = event.event_hash
             self._write(event)
         except Exception as exc:  # pragma: no cover - defensive
             print(f"[aegrail] audit sink {type(self).__name__} failed: {exc}", file=sys.stderr)
@@ -111,13 +175,38 @@ class _SinkBase:
 
 
 class FileAuditSink(_SinkBase):
-    """Append-only JSONL file sink. Line-buffered, thread-safe."""
+    """Append-only JSONL file sink. Line-buffered, thread-safe.
+
+    On open, scans an existing file (if any) for the last event's
+    `event_hash` and uses it to continue the tamper-evident chain
+    across process restarts — the chain spans process lifecycles
+    naturally.
+    """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
+        super().__init__()
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._last_hash = self._read_last_event_hash(self.path)
         self._fh = self.path.open("a", encoding="utf-8")
+
+    @staticmethod
+    def _read_last_event_hash(path: Path) -> str | None:
+        if not path.exists() or path.stat().st_size == 0:
+            return None
+        last_hash: str | None = None
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                    last_hash = parsed.get("event_hash")
+                except json.JSONDecodeError:
+                    continue
+        return last_hash
 
     def _write(self, event: AuditEvent) -> None:
         line = event.to_json_line()
@@ -134,6 +223,7 @@ class StdoutAuditSink(_SinkBase):
     """JSONL to stdout. Useful in dev and containers with log shippers."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._lock = threading.Lock()
 
     def _write(self, event: AuditEvent) -> None:
@@ -147,6 +237,7 @@ class MemoryAuditSink(_SinkBase):
     """In-memory sink for tests and ephemeral inspection."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._lock = threading.Lock()
         self.events: list[AuditEvent] = []
 
@@ -165,6 +256,7 @@ class CallbackAuditSink(_SinkBase):
     """
 
     def __init__(self, callback: Callable[[AuditEvent], None]) -> None:
+        super().__init__()
         self._callback = callback
 
     def _write(self, event: AuditEvent) -> None:
@@ -191,6 +283,7 @@ class WebhookAuditSink(_SinkBase):
         headers: dict[str, str] | None = None,
         timeout: float = 3.0,
     ) -> None:
+        super().__init__()
         self.url = url
         self.timeout = timeout
         self._headers = {"Content-Type": "application/json"}
@@ -220,6 +313,7 @@ class CompositeAuditSink(_SinkBase):
     """
 
     def __init__(self, sinks: list[_SinkBase]) -> None:
+        super().__init__()
         self._sinks = list(sinks)
 
     def _write(self, event: AuditEvent) -> None:

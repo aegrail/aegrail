@@ -6,6 +6,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-05-14
+
+### Added — tamper-evident audit chain
+
+- **`AuditEvent.prev_hash` and `AuditEvent.event_hash`.** Every emitted
+  event now carries a SHA-256 chain link. `prev_hash` references the
+  previous event in the chain (or `None` for the genesis event);
+  `event_hash` is the hash of this event's serialized body (including
+  its `prev_hash`). Any post-hoc edit to a historical event invalidates
+  the chain from that point forward.
+- **`aegrail.audit.verify_chain(events) -> (valid, first_bad_index)`** —
+  pure function that walks a list of `AuditEvent` and confirms the
+  chain. Returns `(True, -1)` on a valid chain or `(False, i)` at the
+  first failing index. Auditors and ops teams run this on archived
+  audit logs to confirm no tampering.
+- **`aegrail.audit.compute_event_hash(event, prev_hash)`** — building
+  block exposed for users who want to compute hashes outside the sink
+  emit path (e.g. for streaming verification).
+- **Chain continuation across process restarts.** `FileAuditSink`
+  reads the last line of an existing audit file on open and continues
+  the chain from that event's `event_hash`. A single audit file written
+  by many sessions over weeks remains one verifiable chain.
+
+### Added — Tool schema exports (DX)
+
+- **`Tool.parameters` and `Tool.required` fields.** Optional;
+  declare the LLM-visible tool schema directly on the aegrail Tool so
+  it doesn't need to be repeated.
+- **`Tool.to_openai_schema()`** — returns the dict suitable for passing
+  to OpenAI's Chat Completions / Responses API `tools=[...]`.
+- **`Tool.to_anthropic_schema()`** — returns the dict suitable for
+  passing to Anthropic Messages API `tools=[...]`.
+- Eliminates the DRY violation in `examples/prompt_injection_demo.py`
+  and similar code where the Tool definition and the LLM schema were
+  declared twice. Existing callers unaffected — the new fields are
+  optional and the methods only fire when `parameters` is set.
+
+### Added — `COMPLIANCE.md`
+
+- Explicit mapping from aegrail's emitted events to specific SOC 2
+  Trust Services Criteria controls (CC6.1, CC6.2, CC6.3, CC7.1, CC7.2,
+  CC7.3, CC9.2, PI1.1, C1.1), ISO 27001:2022 Annex A controls (A.5.15,
+  A.5.16, A.5.17, A.5.18, A.8.15, A.8.16, A.8.24), and NIST SP 800-53
+  controls (AC-2, AC-3, AC-6, AU-2, AU-3, AU-9, AU-12, SI-4).
+- `jq` recipes for the four evidence extractions auditors most
+  commonly ask for.
+- Honest scope disclaimers: aegrail does not authenticate users, does
+  not ship a SIEM, does not enforce retention, does not substitute for
+  network or process isolation. Read before quoting compliance claims.
+- Ships in the sdist; visible on the GitHub repo.
+
+### Project
+
+- 109 tests (75 sync + 16 async + 11 chain + 7 schema). Ruff clean.
+- Fully additive on top of 0.2.2; no breaking changes. Existing audit
+  logs from 0.2.2 lack the chain fields and are still parseable as
+  AuditEvent (the new fields default to `None`).
+- The 0.2.3 wheel was verified against `examples/async_demo.py` driving
+  Ollama `llama3.1:8b` in an isolated venv before PyPI upload, per the
+  release rule. Both OWASP ASI02 + ASI03 controls fired through the
+  async path; the chain validated end-to-end on the resulting log.
+
 ## [0.2.2] — 2026-05-13
 
 ### Added
@@ -189,7 +251,8 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.3
 [0.2.2]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1
 [0.2.0]: # withdrawn from PyPI on 2026-05-13 — superseded by 0.2.1

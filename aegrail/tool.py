@@ -59,6 +59,8 @@ class Tool(BaseModel):
     description: str | None = None
     when: Callable[[dict[str, Any]], bool] | None = None
     redact: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    parameters: dict[str, Any] | None = None
+    required: list[str] | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Tool:
@@ -71,3 +73,56 @@ class Tool(BaseModel):
         if self.redact is not None and not callable(self.redact):
             raise ValueError("Tool.redact must be callable if provided")
         return self
+
+    # --- LLM tool-schema exports -------------------------------------
+    #
+    # These exist so callers don't have to declare the tool twice — once
+    # for aegrail's runtime registry and again as a JSON schema for the
+    # LLM provider's tool-calling API. Set `parameters` (and optionally
+    # `required`) on the Tool and aegrail derives the provider-specific
+    # shape.
+
+    def to_openai_schema(self) -> dict[str, Any]:
+        """Return an OpenAI tools-API schema entry for this tool.
+
+        Suitable for passing into `tools=[...]` in the OpenAI Chat
+        Completions or Responses APIs. Requires `Tool.parameters` to
+        be set; raises ValueError otherwise.
+        """
+        if self.parameters is None:
+            raise ValueError(
+                f"Tool.parameters must be set on {self.name!r} to derive an OpenAI schema"
+            )
+        function: dict[str, Any] = {
+            "name": self.name,
+            "parameters": {
+                "type": "object",
+                "properties": dict(self.parameters),
+                "required": list(self.required) if self.required is not None else [],
+            },
+        }
+        if self.description is not None:
+            function["description"] = self.description
+        return {"type": "function", "function": function}
+
+    def to_anthropic_schema(self) -> dict[str, Any]:
+        """Return an Anthropic Messages-API tool definition for this tool.
+
+        Suitable for passing into `tools=[...]` in `client.messages.create`.
+        Requires `Tool.parameters` to be set; raises ValueError otherwise.
+        """
+        if self.parameters is None:
+            raise ValueError(
+                f"Tool.parameters must be set on {self.name!r} to derive an Anthropic schema"
+            )
+        schema: dict[str, Any] = {
+            "name": self.name,
+            "input_schema": {
+                "type": "object",
+                "properties": dict(self.parameters),
+                "required": list(self.required) if self.required is not None else [],
+            },
+        }
+        if self.description is not None:
+            schema["description"] = self.description
+        return schema

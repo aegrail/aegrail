@@ -368,7 +368,9 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 
 **v0.2 — narrow scope, growing surface.** Identity, budget, audit, and now the per-agent tool ACL. v0.3 adds the egress allowlist proxy; v0.4 adds approval gates.
 
-91 tests (75 sync + 16 async), ruff clean. CI green on Python 3.10, 3.11, 3.12.
+109 tests (75 sync + 16 async + 11 chain + 7 schema), ruff clean. CI green on Python 3.10, 3.11, 3.12.
+
+For SOC 2 / ISO 27001 / NIST SP 800-53 control mappings and audit evidence extraction recipes, see [`COMPLIANCE.md`](COMPLIANCE.md).
 
 ---
 
@@ -378,6 +380,7 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 - **v0.1.x** — alerting sinks (callback/webhook/composite) _(shipped)_
 - **v0.2** — per-agent tool ACL with arg predicates (OWASP ASI02 + ASI03) _(shipped)_
 - **v0.2.2** — `AsyncSession` with hard `wall_seconds` enforcement mid-tool-call _(shipped)_
+- **v0.2.3** — tamper-evident audit chain + `COMPLIANCE.md` (SOC 2 / ISO 27001 / NIST mappings) + Tool schema exports for OpenAI/Anthropic _(shipped)_
 - **v0.2.x** — provider helpers (OpenAI/Anthropic/litellm)
 - **v0.3** — egress allowlist proxy (network-level enforcement)
 - **v0.4** — approval gates for irreversible actions
