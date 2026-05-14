@@ -8,6 +8,7 @@ decides what happens at each boundary, not the LLM.
 
 from __future__ import annotations
 
+import contextvars
 import sys
 import time
 import traceback
@@ -20,6 +21,14 @@ from .budget import Budget, BudgetState
 from .exceptions import BudgetExceeded, SessionTerminated, ToolNotPermitted
 from .identity import new_session_id, session_principal
 from .tool import Tool
+
+# Tracks the currently active Session for the current task / thread.
+# In-process interceptors (aegrail.interceptors) read this to scope
+# their enforcement to active sessions only — outside any session, the
+# interceptors pass through and don't interfere with non-agent code.
+current_session: contextvars.ContextVar[Session | None] = contextvars.ContextVar(
+    "aegrail_current_session", default=None
+)
 
 
 class Session(AbstractContextManager["Session"]):
@@ -58,21 +67,30 @@ class Session(AbstractContextManager["Session"]):
         self._tools = tools
         self._closed = False
         self._terminated_reason: str | None = None
+        # Set by Agent.session() / Agent.async_session() right after
+        # construction. Read by aegrail.interceptors at HTTP-call time.
+        # None means "no allowlist configured for this agent — open egress".
+        self._egress_allowlist: list[str] | None = None
 
     # --- lifecycle --------------------------------------------------
 
     def __enter__(self) -> Session:
+        self._cv_token = current_session.set(self)
         self._emit("session_start", {"task": self.task})
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+        import contextlib
+
         payload: dict[str, Any] = {"reason": self._terminated_reason or "normal"}
         if exc is not None and not isinstance(exc, BudgetExceeded):
             payload["error_type"] = exc_type.__name__ if exc_type else None
             payload["error_message"] = str(exc)
         self._emit("session_end", payload)
         self._closed = True
-        # Don't suppress.
+        with contextlib.suppress(ValueError, LookupError):
+            current_session.reset(self._cv_token)
+        # Don't suppress (the outer except).
 
     # --- recording helpers -----------------------------------------
 

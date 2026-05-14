@@ -58,10 +58,17 @@ class AsyncSession(Session):
     # --- async lifecycle -----------------------------------------------
 
     async def __aenter__(self) -> AsyncSession:
+        from .session import current_session
+
+        self._cv_token = current_session.set(self)
         self._emit("session_start", {"task": self.task})
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
+        import contextlib
+
+        from .session import current_session
+
         payload: dict[str, Any] = {"reason": self._terminated_reason or "normal"}
         if exc is not None and not isinstance(exc, BudgetExceeded):
             payload["error_type"] = exc_type.__name__ if exc_type else None
@@ -70,6 +77,8 @@ class AsyncSession(Session):
                 payload["reason"] = "cancelled"
         self._emit("session_end", payload)
         self._closed = True
+        with contextlib.suppress(ValueError, LookupError):
+            current_session.reset(self._cv_token)
 
     # --- async recording helpers ---------------------------------------
 

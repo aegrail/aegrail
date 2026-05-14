@@ -251,7 +251,8 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.4
 [0.2.3]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.3
 [0.2.2]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1

@@ -30,6 +30,29 @@ class SessionTerminated(AegrailError):
     """Raised when a caller attempts to use a session that has already ended."""
 
 
+class EgressNotPermitted(AegrailError):
+    """Raised when an outbound HTTP request is denied by the agent's
+    egress_allowlist.
+
+    Surfaces from any HTTP client patched by `aegrail.intercept_outbound()`
+    when the destination host fails the agent's allowlist check. The
+    library never blocks; it raises and emits an `egress_denied` audit
+    event so callers can branch on `reason`.
+
+    Attributes:
+      host:   the destination host that was attempted
+      url:    the full URL that was attempted
+      reason: short machine-readable code — currently always
+              'not_in_allowlist'
+    """
+
+    def __init__(self, host: str, url: str, reason: str = "not_in_allowlist") -> None:
+        super().__init__(f"egress to {host!r} denied by agent egress_allowlist (reason={reason!r})")
+        self.host = host
+        self.url = url
+        self.reason = reason
+
+
 class ToolNotPermitted(AegrailError):
     """Raised when a tool call is denied by the agent's policy.
 

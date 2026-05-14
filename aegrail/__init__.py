@@ -28,13 +28,19 @@ from .budget import Budget, BudgetState
 from .exceptions import (
     AegrailError,
     BudgetExceeded,
+    EgressNotPermitted,
     SessionTerminated,
     ToolNotPermitted,
+)
+from .interceptors import (
+    install_audit_hook,
+    intercept_outbound,
+    uninstall_outbound,
 )
 from .session import Session
 from .tool import Tool
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 __all__ = [
     "AegrailError",
@@ -47,6 +53,7 @@ __all__ = [
     "BudgetState",
     "CallbackAuditSink",
     "CompositeAuditSink",
+    "EgressNotPermitted",
     "FileAuditSink",
     "MemoryAuditSink",
     "Session",
@@ -56,4 +63,7 @@ __all__ = [
     "ToolNotPermitted",
     "WebhookAuditSink",
     "__version__",
+    "install_audit_hook",
+    "intercept_outbound",
+    "uninstall_outbound",
 ]

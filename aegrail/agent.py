@@ -53,6 +53,7 @@ class Agent:
         budget: Budget,
         audit: AuditSink | None = None,
         tools: Mapping[str, Tool] | None = None,
+        egress_allowlist: list[str] | None = None,
     ) -> None:
         self.identity = validate_agent_identity(identity)
         if not isinstance(budget, Budget):
@@ -60,6 +61,21 @@ class Agent:
         self.budget = budget
         self.audit = audit if audit is not None else StdoutAuditSink()
         self.tools = _freeze_tools(tools)
+        self.egress_allowlist: list[str] | None = (
+            list(egress_allowlist) if egress_allowlist is not None else None
+        )
+        # If AEGRAIL_INTERCEPT=1 is set in the environment, auto-install
+        # the in-process interceptors when this Agent is constructed.
+        # Deployment platforms set this env var to enforce non-skippable
+        # in-process defense-in-depth without requiring developer code
+        # changes. See aegrail.interceptors for details.
+        import os
+
+        if os.environ.get("AEGRAIL_INTERCEPT") == "1":
+            from .interceptors import install_audit_hook, intercept_outbound
+
+            intercept_outbound()
+            install_audit_hook(self)
 
     def session(
         self,
@@ -68,7 +84,7 @@ class Agent:
         task: str | None = None,
     ) -> Session:
         """Open a new sync session. Use as a context manager."""
-        return Session(
+        s = Session(
             agent_identity=self.identity,
             budget=self.budget,
             sink=self.audit,
@@ -76,6 +92,8 @@ class Agent:
             task=task,
             tools=self.tools,
         )
+        s._egress_allowlist = self.egress_allowlist
+        return s
 
     def async_session(
         self,
@@ -90,7 +108,7 @@ class Agent:
         asyncio.wait_for. Sync `session()` can only check at event
         boundaries.
         """
-        return AsyncSession(
+        s = AsyncSession(
             agent_identity=self.identity,
             budget=self.budget,
             sink=self.audit,
@@ -98,6 +116,8 @@ class Agent:
             task=task,
             tools=self.tools,
         )
+        s._egress_allowlist = self.egress_allowlist
+        return s
 
     def close(self) -> None:
         """Close the underlying audit sink. Idempotent."""

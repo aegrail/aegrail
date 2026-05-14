@@ -32,6 +32,8 @@ EventType = Literal[
     "llm_call",
     "tool_call",
     "tool_denied",
+    "egress_denied",
+    "audit_hook_event",
     "budget_exceeded",
     "error",
 ]
