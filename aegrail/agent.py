@@ -46,6 +46,79 @@ class Agent:
     silently allowing arbitrary calls.
     """
 
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        identity: str | None = None,
+        budget: Budget | None = None,
+        audit: AuditSink | None = None,
+        tools: Mapping[str, Tool] | None = None,
+        egress_allowlist: list[str] | None = None,
+    ) -> Agent:
+        """Construct an Agent with `AEGRAIL_*` env vars filling in
+        anything not explicitly passed.
+
+        Explicit kwargs always win. Env vars are fallback defaults so
+        the same code runs on Cloud Run, AWS App Runner, Azure
+        Container Apps, AWS Fargate, Kubernetes, or anywhere else the
+        platform exposes env vars to the container.
+
+          AEGRAIL_AGENT_IDENTITY         -> identity (required if not
+                                            passed and no env var)
+          AEGRAIL_BUDGET_USD, _TOKENS,   -> Budget axes (see
+            _WALL_SECONDS,                  Budget.from_env)
+            _MAX_RECURSION,
+            _MAX_TOOL_CALLS
+          AEGRAIL_EGRESS_ALLOWLIST       -> comma-separated host
+                                            patterns
+          AEGRAIL_AUDIT_FILE             -> AuditSink.file(path)
+          AEGRAIL_AUDIT_STDOUT=1         -> AuditSink.stdout()
+                                            (default if neither set)
+
+        Tools must still be passed explicitly via `tools=` — they
+        contain callable functions and predicates that have to live
+        in code. The future external policy-file feature (see roadmap)
+        adds operator-controlled tool gating on top of code-registered
+        tool implementations.
+        """
+        import os
+
+        if identity is None:
+            identity = os.environ.get("AEGRAIL_AGENT_IDENTITY")
+            if not identity:
+                raise ValueError(
+                    "Agent.from_env requires identity= or AEGRAIL_AGENT_IDENTITY env var"
+                )
+
+        if budget is None:
+            budget = Budget.from_env()
+
+        if audit is None:
+            audit_file = os.environ.get("AEGRAIL_AUDIT_FILE")
+            if audit_file:
+                from .audit import FileAuditSink
+
+                audit = FileAuditSink(audit_file)
+            elif os.environ.get("AEGRAIL_AUDIT_STDOUT") == "1":
+                from .audit import StdoutAuditSink
+
+                audit = StdoutAuditSink()
+            # else: Agent.__init__ defaults to StdoutAuditSink
+
+        if egress_allowlist is None:
+            raw = os.environ.get("AEGRAIL_EGRESS_ALLOWLIST")
+            if raw is not None:
+                egress_allowlist = [h.strip() for h in raw.split(",") if h.strip()]
+
+        return cls(
+            identity=identity,
+            budget=budget,
+            audit=audit,
+            tools=tools,
+            egress_allowlist=egress_allowlist,
+        )
+
     def __init__(
         self,
         *,

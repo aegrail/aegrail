@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] — 2026-05-15
+
+### Added — env-var configuration for containerised deployments
+
+- **`Agent.from_env(...)`** and **`Budget.from_env()`** classmethods.
+  Read sensible defaults from `AEGRAIL_*` environment variables so the
+  same Dockerfile can run on Cloud Run, AWS App Runner, Azure Container
+  Apps, AWS Fargate, or Kubernetes with deployment-time configuration
+  rather than code changes. Explicit kwargs always win; env vars are
+  fallback defaults.
+- **Env var surface:**
+  - `AEGRAIL_AGENT_IDENTITY` — agent identity string (required if not
+    passed)
+  - `AEGRAIL_BUDGET_USD` / `AEGRAIL_BUDGET_TOKENS` /
+    `AEGRAIL_BUDGET_WALL_SECONDS` / `AEGRAIL_BUDGET_MAX_RECURSION` /
+    `AEGRAIL_BUDGET_MAX_TOOL_CALLS` — at least one must be set
+  - `AEGRAIL_EGRESS_ALLOWLIST` — comma-separated host patterns
+  - `AEGRAIL_AUDIT_FILE=/path` — route audit to a file sink
+  - `AEGRAIL_AUDIT_STDOUT=1` — explicit stdout sink
+  - `AEGRAIL_INTERCEPT=1` — auto-install in-process interceptors
+    (existing behavior, now documented alongside its peers)
+- **Tools still come from code.** `Tool` instances carry callable
+  functions and `when=` predicates that cannot be serialised to env
+  vars. The future external policy-file feature (roadmap v0.2.x) adds
+  operator-controlled tool gating on top of code-registered tools.
+- **Tests:** 16 new tests covering each env var path, explicit-kwarg
+  override behavior, parse-failure messages, and the required-axis
+  guarantee. Total suite now passes on Python 3.10/3.11/3.12.
+
 ## [0.2.3] — 2026-05-14
 
 ### Added — tamper-evident audit chain

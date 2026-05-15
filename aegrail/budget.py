@@ -10,6 +10,7 @@ not via the LLM.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -43,6 +44,51 @@ class Budget(BaseModel):
         ):
             raise ValueError("Budget must set at least one limit")
         return self
+
+    @classmethod
+    def from_env(cls) -> Budget:
+        """Construct a Budget from `AEGRAIL_BUDGET_*` environment variables.
+
+        Reads the following env vars; each is optional but at least one
+        must be set (Budget requires at least one limit):
+
+          AEGRAIL_BUDGET_USD              float  -> Budget.usd
+          AEGRAIL_BUDGET_TOKENS           int    -> Budget.tokens
+          AEGRAIL_BUDGET_WALL_SECONDS     float  -> Budget.wall_seconds
+          AEGRAIL_BUDGET_MAX_RECURSION    int    -> Budget.max_recursion
+          AEGRAIL_BUDGET_MAX_TOOL_CALLS   int    -> Budget.max_tool_calls
+
+        Raises ValueError with a clear message if none are set — that's
+        the same failure mode as `Budget()` with no args, just with a
+        more specific error.
+        """
+        import os
+
+        env_to_field: dict[str, tuple[str, type]] = {
+            "AEGRAIL_BUDGET_USD": ("usd", float),
+            "AEGRAIL_BUDGET_TOKENS": ("tokens", int),
+            "AEGRAIL_BUDGET_WALL_SECONDS": ("wall_seconds", float),
+            "AEGRAIL_BUDGET_MAX_RECURSION": ("max_recursion", int),
+            "AEGRAIL_BUDGET_MAX_TOOL_CALLS": ("max_tool_calls", int),
+        }
+        kwargs: dict[str, Any] = {}
+        for env_name, (field, cast) in env_to_field.items():
+            raw = os.environ.get(env_name)
+            if raw is None or raw == "":
+                continue
+            try:
+                kwargs[field] = cast(raw)
+            except ValueError as exc:
+                raise ValueError(
+                    f"{env_name}={raw!r} cannot be parsed as {cast.__name__}: {exc}"
+                ) from exc
+        if not kwargs:
+            raise ValueError(
+                "Budget.from_env requires at least one AEGRAIL_BUDGET_* "
+                "environment variable to be set "
+                "(USD, TOKENS, WALL_SECONDS, MAX_RECURSION, or MAX_TOOL_CALLS)"
+            )
+        return cls(**kwargs)
 
 
 class BudgetState:
