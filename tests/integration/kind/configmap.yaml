@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aegrail-config
+  labels:
+    app: aegrail-configmap-test
+data:
+  # Identity — the role this container is acting as
+  AEGRAIL_AGENT_IDENTITY: "kind-configmap-agent/v1"
+
+  # Hard kill-switches — at least one must be set
+  AEGRAIL_BUDGET_USD: "1.0"
+  AEGRAIL_BUDGET_TOKENS: "5000"
+  AEGRAIL_BUDGET_WALL_SECONDS: "30"
+  AEGRAIL_BUDGET_MAX_TOOL_CALLS: "10"
+
+  # Egress allowlist — comma-separated host patterns
+  AEGRAIL_EGRESS_ALLOWLIST: "api.openai.com,*.anthropic.com"
+
+  # Where to route the audit chain
+  AEGRAIL_AUDIT_FILE: "/var/log/aegrail/audit.jsonl"

@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+
+# This image installs aegrail from a wheel staged in the build
+# context — keeps the integration test pinned to the exact artifact
+# the release pipeline just produced, independent of PyPI replication
+# lag. The run script copies dist/*.whl next to this Dockerfile.
+COPY aegrail-*.whl /tmp/
+
+RUN pip install --no-cache-dir /tmp/aegrail-*.whl && rm -f /tmp/aegrail-*.whl
+
+COPY configmap_agent.py /agent.py
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "/agent.py"]

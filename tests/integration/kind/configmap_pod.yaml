@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aegrail-configmap-agent
+  labels:
+    app: aegrail-configmap-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: agent
+      image: aegrail-configmap-agent:kind-test
+      imagePullPolicy: Never
+      # The load-bearing pattern: ALL aegrail config comes from the
+      # ConfigMap. Application code does not name the values.
+      envFrom:
+        - configMapRef:
+            name: aegrail-config
+      volumeMounts:
+        - name: audit
+          mountPath: /var/log/aegrail
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+  volumes:
+    - name: audit
+      emptyDir: {}

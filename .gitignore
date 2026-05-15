@@ -30,3 +30,5 @@ audit*.jsonl
 *.key
 secrets/
 dist/
+# Staged wheel copies for kind integration tests
+tests/integration/kind/aegrail-*.whl
