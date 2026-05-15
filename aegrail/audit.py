@@ -27,6 +27,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 EventType = Literal[
+    # SDK-produced events (Python library)
     "session_start",
     "session_end",
     "llm_call",
@@ -36,6 +37,14 @@ EventType = Literal[
     "audit_hook_event",
     "budget_exceeded",
     "error",
+    # Engine-produced events (aegrail-engine Go sidecar). Listed
+    # here so `AuditEvent.model_validate` accepts cross-language
+    # chains end-to-end — a single verifier walks both halves.
+    "engine_start",
+    "engine_shutdown",
+    "engine_heartbeat",
+    "egress_allowed",
+    "egress_error",
 ]
 
 

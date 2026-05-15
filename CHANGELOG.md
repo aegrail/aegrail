@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] — 2026-05-15
+
+### Added — engine event types in `AuditEvent`
+
+- `EventType` literal now accepts `engine_start`, `engine_shutdown`,
+  `engine_heartbeat`, `egress_allowed`, `egress_error` so
+  `AuditEvent.model_validate` and `verify_chain` can walk chains
+  produced by the aegrail-engine Go sidecar end-to-end. One verifier
+  function handles SDK + engine events; auditors don't need
+  language-aware tooling.
+- Validated by the engine's kind+Ollama integration test, which
+  produces a 5-event chain (engine_start, two egress_allowed, two
+  egress_denied) from Go and confirms `verify_chain` returns
+  `(True, -1)` from Python over the exact same JSONL.
+
 ## [0.2.6] — 2026-05-15
 
 ### Added — env-var configuration for containerised deployments
