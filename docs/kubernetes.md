@@ -1,5 +1,14 @@
 # Deploying aegrail-protected agents on Kubernetes
 
+> **For the full production guide** (ConfigMap + External Secrets
+> Operator + KMS-backed secrets + NetworkPolicy + the production
+> checklist), see [`deployments/kubernetes.md`](deployments/kubernetes.md).
+>
+> This page covers the original v0.2.4 interceptor-focused pattern
+> for reference. It still works and is still recommended as part of
+> the layered model — the deployments guide adds the v0.2.6
+> env-var pattern on top.
+
 This guide covers the recommended K8s deployment pattern for AI
 agents that use the aegrail Python library. The pattern is
 **developer-effortless**: the agent code does not change between

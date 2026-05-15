@@ -1,181 +1,278 @@
-# Deploying aegrail-protected agents on AWS App Runner
+# AWS App Runner — production-ready aegrail deployment
 
-This guide takes a containerised agent service from local Docker to a running
-AWS App Runner endpoint, with all aegrail policy — identity, budget, egress
-allowlist, audit destination — supplied at deploy time via environment
-variables. The application code calls `Agent.from_env()` and never names the
-values.
+This guide is the **production** path for running an aegrail-protected
+agent on AWS App Runner. It uses **KMS-backed Secrets Manager** for
+the LLM provider key and **plain `RuntimeEnvironmentVariables`** for
+operator-controlled aegrail policy.
 
-This guide was last verified end-to-end on **2026-05-15** against
-**aegrail 0.2.6**, App Runner in **us-east-1**, with OpenRouter as the LLM
-provider. The sample lives in
-[`examples/deployments/app-runner/`](../../examples/deployments/app-runner/).
+The pattern was **verified end-to-end on 2026-05-15** against
+aegrail 0.2.6 in `us-east-1`. The deployed service responded with
+*"KMS-backed aegrail works."* and the audit chain (3 events, all
+linked) flowed into CloudWatch.
 
-## What this gives you
+Sample at [`examples/deployments/app-runner/`](../../examples/deployments/app-runner/).
 
-- An HTTPS endpoint serving a small FastAPI app
-- `Agent.from_env()` configured from App Runner runtime env vars
-- Hard kill-switches on USD / tokens / wall-seconds / tool calls
-- Egress allowlist enforced in-process (defence-in-depth before the
-  forthcoming sidecar engine)
-- Tamper-evident audit chain streaming to **CloudWatch Logs** via stdout
+## At a glance
 
-## What it does NOT yet give you
+```
+                            +----------------------+
+                            |       App Runner     |
+   ECR ──── pull ──────────►|  aegrail-sample      |◄──── HTTPS users
+   (image)                  |                      |
+                            |  env: AEGRAIL_*      |
+                            |  env-from-secret:    |
+                            |    OPENROUTER_API_KEY|
+                            +----------------------+
+                                   │     │
+                ┌──────────────────┘     └──────────────┐
+                ▼                                       ▼
+    Secrets Manager:                          Instance role:
+    aegrail/sample-prod/                      kms:Decrypt (on the CMK)
+    openrouter-key                            secretsmanager:GetSecretValue
+       │                                      (on the secret)
+       └──► encrypted by CMK ◄───── alias/aegrail-sample-prod
+                                                       ▲
+                                                       │ (rotate on schedule)
+```
 
-- Sidecar-level egress proxy enforcement (App Runner does not support
-  sidecars; that's a Kubernetes / ECS / Fargate story — see those guides)
-- Per-user identity from a Cognito JWT — wire `user_id=` on
-  `agent.session(...)` from your auth middleware
+## Resources you'll create
 
-## Prerequisites
+| Resource | Purpose | Cost when idle |
+|---|---|---|
+| KMS Customer Managed Key (CMK) | Encrypts the secret. CMK = audit + rotation. | $1/month |
+| KMS alias | Stable handle so you can rotate the underlying key without redeploy | $0 |
+| Secrets Manager secret | Holds the LLM provider key, encrypted by the CMK | $0.40/month + per-call |
+| ECR repo | Image registry | ~$0.10/GB-month |
+| IAM `AccessRole` | App Runner assumes this to pull from ECR | $0 |
+| IAM `InstanceRole` | The running container assumes this to fetch the secret | $0 |
+| App Runner service | The running agent | $1/month base + per-vCPU-second when active |
 
-- AWS CLI v2 authenticated against an account where you can create
-  App Runner services, ECR repos, and IAM roles
-- Docker (any recent version)
-- An LLM provider key. The sample uses
-  [OpenRouter](https://openrouter.ai) (`OPENROUTER_API_KEY`); swap in
-  any provider you like by editing `agent_service.py`.
+Steady-state minimum is roughly **$2.50/month** with no traffic.
 
-## The 90-second tour
+## End-to-end deploy
+
+`examples/deployments/app-runner/deploy.sh` does all of this with one
+command. It supports two modes via the `SECRETS_MODE` env var:
+
+- `SECRETS_MODE=env` (default for dev) — `OPENROUTER_API_KEY` is
+  passed as a plain `RuntimeEnvironmentVariables` entry. Fast for
+  iteration; **never for production**.
+- `SECRETS_MODE=kms` (production) — creates a CMK, stores the key in
+  Secrets Manager encrypted by the CMK, wires an instance role with
+  least-privilege access, and references the secret via
+  `RuntimeEnvironmentSecrets`.
 
 ```bash
 cd examples/deployments/app-runner
 export OPENROUTER_API_KEY=sk-or-...
-./deploy.sh        # builds + pushes + creates service; ~3 min
-./teardown.sh      # deletes service, ECR repo, IAM role
+SECRETS_MODE=kms ./deploy.sh
+# (when done)
+SECRETS_MODE=kms ./teardown.sh
 ```
 
-## What's actually happening
+## What the production deploy actually does
 
-### 1. The application code
+The commands below are what `deploy.sh` runs under `SECRETS_MODE=kms`.
+Walking through them by hand once helps explain what's underneath.
 
-`agent_service.py` (excerpt — see the full file for the rest):
+### 1. Customer-managed KMS key
 
-```python
-from aegrail import Agent
-
-AGENT = Agent.from_env()    # reads AEGRAIL_* env vars set by App Runner
-
-@app.post("/chat")
-def chat(body: ChatIn):
-    with AGENT.session(user_id="app-runner-demo", task="chat") as s:
-        reply, model, tin, tout = call_openrouter(body.message)
-        s.record_llm(model=model, tokens_in=tin, tokens_out=tout,
-                     cost_usd=estimate_cost(model, tin, tout))
-        return {"reply": reply, "aegrail_state": s.state_snapshot}
+```bash
+aws kms create-key \
+  --description "aegrail prod CMK" \
+  --tags TagKey=Project,TagValue=aegrail
+KEY_ARN=$(aws kms describe-key --key-id "${KEY_ID}" --query 'KeyMetadata.Arn' --output text)
+aws kms create-alias --alias-name alias/aegrail-prod --target-key-id "${KEY_ID}"
 ```
 
-No code mentions a USD budget, a token cap, an allowlisted host, or where
-audit goes. All of that is operator-controlled.
+A CMK gives you:
+- Per-key audit trail in CloudTrail (auditors will ask).
+- Independent rotation schedule.
+- Optional key policy preventing AWS-side access.
 
-### 2. The Dockerfile
+### 2. Store the secret
 
-```dockerfile
-FROM python:3.12-slim
-RUN useradd -m -u 10001 app
-USER app
-WORKDIR /home/app
-ENV PATH="/home/app/.local/bin:${PATH}"
-COPY --chown=app:app requirements.txt /home/app/
-RUN pip install --user -r requirements.txt
-COPY --chown=app:app agent_service.py /home/app/
-EXPOSE 8080
-CMD ["uvicorn", "agent_service:app", "--host", "0.0.0.0", "--port", "8080"]
+```bash
+aws secretsmanager create-secret \
+  --name "aegrail/prod/openrouter-key" \
+  --kms-key-id "${KEY_ARN}" \
+  --secret-string "${OPENROUTER_API_KEY}"
 ```
 
-Non-root user (App Runner best practice), port 8080.
+Naming convention: `aegrail/<env>/<purpose>`. Lets a single IAM policy
+grant access to all secrets for one environment via a prefix wildcard.
 
-### 3. The App Runner runtime environment variables
+### 3. Roles — split access and instance
 
-```
-AEGRAIL_AGENT_IDENTITY    = app-runner-sample/v1
-AEGRAIL_BUDGET_USD        = 0.10
-AEGRAIL_BUDGET_TOKENS     = 4000
-AEGRAIL_BUDGET_WALL_SECONDS = 60
-AEGRAIL_BUDGET_MAX_TOOL_CALLS = 5
-AEGRAIL_EGRESS_ALLOWLIST  = openrouter.ai
-AEGRAIL_AUDIT_STDOUT      = 1
-OPENROUTER_API_KEY        = (your key)
-OPENROUTER_MODEL          = openai/gpt-4o-mini
-```
+App Runner uses two roles with different scope. Don't merge them.
 
-`deploy.sh` passes these on `aws apprunner create-service` via the
-`SourceConfiguration.ImageRepository.ImageConfiguration.RuntimeEnvironmentVariables`
-block.
+**Access role** — for `build.apprunner.amazonaws.com`, used at deploy
+time to pull the image from ECR:
 
-For production: move secrets (the OpenRouter key) into AWS Secrets Manager
-and reference them via `RuntimeEnvironmentSecrets` instead of
-`RuntimeEnvironmentVariables`. App Runner will inject them as env vars at
-runtime — `Agent.from_env()` reads them identically.
-
-### 4. The audit chain in CloudWatch
-
-Because the service runs with `AEGRAIL_AUDIT_STDOUT=1`, every audit event
-lands as a single-line JSON record in:
-
-```
-/aws/apprunner/<service-name>/<service-id>/application
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "build.apprunner.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}
 ```
 
-Each event carries `prev_hash` + `event_hash` so a CloudWatch Logs query (or
-an export to S3 + Athena) can verify the chain end-to-end.
+Attach AWS-managed policy `AWSAppRunnerServicePolicyForECRAccess`.
 
-Verifier sample:
+**Instance role** — for `tasks.apprunner.amazonaws.com`, assumed by
+the *running* container:
 
-```python
-import json
-from aegrail.audit import AuditEvent, verify_chain
-
-with open("cloudwatch-export.jsonl") as f:
-    events = [AuditEvent.model_validate(json.loads(line)) for line in f if line.strip()]
-ok, bad = verify_chain(events)
-assert ok, f"audit chain broken at event index {bad}"
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "tasks.apprunner.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}
 ```
 
-### 5. Observed costs of the test run
+Inline policy — least-privilege, scoped to the specific secret and CMK:
 
-For the verification deploy on 2026-05-15:
-- App Runner: ~3 minutes of runtime, 0.25 vCPU / 0.5 GB → **~$0.01**
-- ECR storage: <1 MB image, deleted within the same hour → **~$0.00**
-- OpenRouter (gpt-4o-mini, 1 chat call): **<$0.0001**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:ACCT:secret:aegrail/prod/openrouter-key-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:us-east-1:ACCT:key/KEY-ID"
+    }
+  ]
+}
+```
 
-App Runner has no idle cost when the service is paused; the listed price is
-charged only when handling traffic, with a small provisioning floor.
+The `-*` suffix on the secret ARN matches the random suffix Secrets
+Manager appends. Without it, IAM denies the call.
 
-## Production checklist
+### 4. Create the service with the right env split
 
-Before you let real traffic through this:
+```json
+{
+  "ImageRepository": {
+    "ImageIdentifier": "ACCT.dkr.ecr.us-east-1.amazonaws.com/aegrail:v0.2.6",
+    "ImageConfiguration": {
+      "Port": "8080",
+      "RuntimeEnvironmentVariables": {
+        "AEGRAIL_AGENT_IDENTITY": "support-bot/v1",
+        "AEGRAIL_BUDGET_USD": "5.00",
+        "AEGRAIL_BUDGET_TOKENS": "100000",
+        "AEGRAIL_BUDGET_WALL_SECONDS": "120",
+        "AEGRAIL_EGRESS_ALLOWLIST": "api.openai.com,*.anthropic.com",
+        "AEGRAIL_AUDIT_STDOUT": "1",
+        "OPENROUTER_MODEL": "openai/gpt-4o-mini"
+      },
+      "RuntimeEnvironmentSecrets": {
+        "OPENROUTER_API_KEY": "arn:aws:secretsmanager:us-east-1:ACCT:secret:aegrail/prod/openrouter-key-XXXXXX"
+      }
+    },
+    "ImageRepositoryType": "ECR"
+  },
+  "AuthenticationConfiguration": {
+    "AccessRoleArn": "arn:aws:iam::ACCT:role/AppRunnerECRAccessRole-aegrail-prod"
+  }
+}
+```
 
-- [ ] Move `OPENROUTER_API_KEY` into AWS Secrets Manager; reference via
-      `RuntimeEnvironmentSecrets`, not `RuntimeEnvironmentVariables`.
-- [ ] Set `AEGRAIL_AGENT_IDENTITY` to a stable, audited string (e.g.
-      `support-bot/v1.4.2-prod`) — your audit chain joins on this.
-- [ ] Set budgets that match your operational appetite — Aegrail's
-      kill-switch is hard, not soft. A `BudgetExceeded` exception will
-      crash the session.
-- [ ] Set `AEGRAIL_EGRESS_ALLOWLIST` to the exact set of LLM provider hosts
-      you intend to allow. Comma-separated `fnmatch`-style patterns, e.g.
-      `api.openai.com,*.anthropic.com`.
-- [ ] Replace `agent.session(user_id="app-runner-demo", ...)` with the real
-      caller identity from your auth middleware.
-- [ ] Register tools explicitly on the Agent. The sample registers none
-      because the demo only does LLM calls; in real systems you'll have a
-      tool registry. Tools are passed in code via `Agent.from_env(tools=...)`.
-- [ ] Stream CloudWatch Logs to long-term storage (S3 / Glacier) for
-      retention beyond the App Runner default. Audit chain only verifies
-      what you keep.
+```json
+{
+  "Cpu": "0.25 vCPU",
+  "Memory": "0.5 GB",
+  "InstanceRoleArn": "arn:aws:iam::ACCT:role/AppRunnerInstanceRole-aegrail-prod"
+}
+```
+
+`InstanceRoleArn` is on the instance config, *not* in
+`AuthenticationConfiguration`. The latter is for image-pull only.
+
+## Verification — observed behavior
+
+```bash
+$ curl -sX POST https://bznhzfkrpn.us-east-1.awsapprunner.com/chat \
+    -H 'Content-Type: application/json' \
+    -d '{"message":"Reply with exactly: KMS-backed aegrail works."}' | jq
+{
+  "reply": "KMS-backed aegrail works.",
+  "model": "openai/gpt-4o-mini",
+  "tokens_in": 18,
+  "tokens_out": 8,
+  "cost_usd": 7.5e-06,
+  "aegrail_state": {
+    "tokens_used": 26,
+    "usd_used": 7e-06,
+    "tool_calls": 0,
+    "recursion_depth": 0,
+    "wall_elapsed": 0.468
+  }
+}
+```
+
+CloudWatch stream `/aws/apprunner/aegrail-sample-prod/.../application`
+contains three JSON-line aegrail audit events (`session_start`,
+`llm_call`, `session_end`) with `prev_hash` / `event_hash` linking
+them. Confirmed via `aegrail.audit.verify_chain` over the exported
+lines: `(True, -1)`.
+
+## Production checklist (App Runner-specific)
+
+- [ ] Use a customer-managed KMS key (CMK), not the AWS-managed
+      `aws/secretsmanager` key. CMK = key policy + CloudTrail data
+      events you control.
+- [ ] Enable **automatic rotation** on the Secrets Manager secret
+      (https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets.html).
+      The instance role doesn't need to change; App Runner re-fetches
+      on the next container start.
+- [ ] Restrict the secret's resource policy to the specific instance
+      role ARN. Defence-in-depth on top of the inline policy.
+- [ ] Set `AutoDeploymentsEnabled: false` and roll forward via
+      `aws apprunner update-service` from CI — keeps prod immune to
+      surprise image-tag pushes.
+- [ ] Add an App Runner **observability configuration** (X-Ray
+      tracing) and an **observability** dashboard. The aegrail audit
+      stream covers *what the agent did*; X-Ray covers *how the
+      container performed*.
+- [ ] Stream the CloudWatch log group to S3 (CloudWatch Logs
+      → Kinesis → S3) for audit retention. Default CW Logs retention
+      is short.
+- [ ] Add a CloudWatch **metric filter** on
+      `event="budget_exceeded"` and alarm on it — the budget
+      kill-switch is supposed to fire occasionally; an unexpected
+      spike means something else.
 
 ## Teardown
 
 ```bash
-./teardown.sh
+SECRETS_MODE=kms ./teardown.sh
 ```
 
-Deletes the App Runner service, the ECR repo (with all images), and the
-IAM role.
+Deletes service → ECR repo → both IAM roles → secret (force, no
+recovery window) → KMS alias → schedules the CMK for deletion in 7
+days (KMS minimum).
 
-## Reference
+## Notes
 
-- AWS App Runner docs: https://docs.aws.amazon.com/apprunner/
-- aegrail env vars: see `aegrail.Agent.from_env` and `aegrail.Budget.from_env`
-  docstrings.
+- **KMS pending-deletion window** is 7-30 days; 7 is the minimum AWS
+  allows. The key incurs no charge during this window. To cancel
+  deletion, `aws kms cancel-key-deletion --key-id ...`.
+- **Secrets Manager pricing**: $0.40/secret/month + $0.05 per 10k
+  API calls. App Runner refreshes secrets on container start, not
+  per request, so call volume is bounded by deploy/scale events.
+- **App Runner doesn't support sidecars.** If you need a sidecar
+  egress proxy, target [Fargate](aws-fargate.md) or
+  [Kubernetes](kubernetes.md) instead. aegrail's v0.3 engine is the
+  long-term answer here; until then, the in-process interceptors
+  (`AEGRAIL_INTERCEPT=1`) are your defense-in-depth on App Runner.
