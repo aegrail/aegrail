@@ -1,0 +1,3 @@
+aegrail==0.2.6
+fastapi>=0.115
+uvicorn[standard]>=0.30

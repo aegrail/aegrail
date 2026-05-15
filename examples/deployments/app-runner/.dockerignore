@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+.env
+.env.*
+deploy.sh
+teardown.sh
+*.md
