@@ -145,10 +145,18 @@ class Agent:
         import os
 
         if os.environ.get("AEGRAIL_INTERCEPT") == "1":
+            from .integrations import install_all as _install_provider_integrations
             from .interceptors import install_audit_hook, intercept_outbound
 
             intercept_outbound()
             install_audit_hook(self)
+            # Auto-instrument LLM provider SDKs already imported in
+            # the process (openai, anthropic, litellm, ...). Patched
+            # `create` methods read the active session from the
+            # ContextVar and transparently call session.check_budget
+            # + session.record_llm around each LLM request — no code
+            # change required by the agent author.
+            _install_provider_integrations()
 
     def session(
         self,

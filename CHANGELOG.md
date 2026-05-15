@@ -6,6 +6,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-16
+
+### Added — OpenAI SDK auto-instrumentation
+
+The adoption story. With `AEGRAIL_INTERCEPT=1` set, constructing an
+Agent now patches the OpenAI Python SDK in place so every `chat.
+completions.create` and `responses.create` call (sync and async)
+transparently:
+
+1. Looks up the active session from `aegrail.session.current_session`
+   (the existing ContextVar).
+2. Calls `session.check_budget()` before the request — already-
+   exceeded ceilings fail-fast with `BudgetExceeded` and the upstream
+   call never happens.
+3. Runs the original OpenAI method.
+4. Extracts model + token usage from the response (supports both
+   Chat Completions and Responses API shapes; reads
+   `prompt_tokens_details.cached_tokens` for cache attribution).
+5. Calls `session.record_llm(...)`, which emits the `llm_call` audit
+   event and updates the budget state. Token-budget violations raise
+   `BudgetExceeded` post-record.
+
+No code change is required by the agent author. The pattern works
+for OpenAI directly and for any code that wraps `openai.OpenAI` /
+`openai.AsyncOpenAI` (LangChain's `ChatOpenAI` and similar use the
+SDK underneath and get coverage transparently).
+
+Streaming requests (`stream=True`) pass through; usage isn't
+available until the final chunk and the wrapped stream object would
+need shape-specific handling. The caller can still record manually
+via `session.record_llm(...)` after consuming the stream.
+
+Cost calculation stays the caller's responsibility (no baked-in
+price table — see `CLAUDE.md` design principle). Auto-recorded
+`cost_usd=0.0`; budgets on `tokens`, `wall_seconds`, `max_recursion`,
+`max_tool_calls` still fire.
+
+### Added — `aegrail.integrations` module
+
+New module surface for provider SDK adapters. `aegrail.integrations.
+install_all()` is called automatically by `Agent.__init__` when
+`AEGRAIL_INTERCEPT=1` is set; failures during install are caught
+and logged at WARNING (per design principle #8: integrations must
+never break the caller).
+
+Currently shipping: `openai`. Anthropic and litellm will land as
+0.3.0.x fast-follows.
+
+### Tests
+
+8 new tests in `tests/test_openai_integration.py` covering: patch
+installation, idempotent re-install, sync token recording + audit,
+no-session passthrough, streaming passthrough, post-record budget
+breach, pre-check rejection when state is already over the ceiling,
+and async coroutine flow. Total suite is now 161 tests; all green
+on Python 3.10 / 3.11 / 3.12.
+
 ## [0.2.7] — 2026-05-15
 
 ### Added — engine event types in `AuditEvent`
