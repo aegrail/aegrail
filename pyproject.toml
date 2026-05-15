@@ -48,6 +48,7 @@ include = [
     "/aegrail",
     "/examples",
     "/tests",
+    "/docs",
     "/README.md",
     "/CHANGELOG.md",
     "/COMPLIANCE.md",

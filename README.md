@@ -372,6 +372,8 @@ Sink failures **never** break the agent. Every sink wraps its write path; errors
 
 For SOC 2 / ISO 27001 / NIST SP 800-53 control mappings and audit evidence extraction recipes, see [`COMPLIANCE.md`](COMPLIANCE.md).
 
+For K8s deployment patterns (developer-effortless `AEGRAIL_INTERCEPT=1` env-var enforcement, plus a working kind cluster integration test), see [`docs/kubernetes.md`](docs/kubernetes.md).
+
 ---
 
 ## Roadmap

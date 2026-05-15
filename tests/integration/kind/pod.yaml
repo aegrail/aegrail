@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aegrail-sample-agent
+  labels:
+    app: aegrail-kind-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: agent
+      image: aegrail-sample-agent:kind-test
+      imagePullPolicy: Never
+      env:
+        # The load-bearing pod-level env var: enables aegrail's
+        # in-process interceptors automatically on Agent construction.
+        # No agent code change required.
+        - name: AEGRAIL_INTERCEPT
+          value: "1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
