@@ -43,7 +43,10 @@ def main() -> int:
         except EgressNotPermitted as exc:
             print(f"OK: denied.example -> EgressNotPermitted (host={exc.host})")
         except urllib.error.URLError as exc:
-            print(f"FAIL: denied.example should have been blocked at the boundary; got URLError instead: {exc}")
+            print(
+                "FAIL: denied.example should have been blocked at the boundary; "
+                f"got URLError instead: {exc}"
+            )
             return 1
         except Exception as exc:
             print(f"FAIL: unexpected exception type {type(exc).__name__}: {exc}")
@@ -62,7 +65,10 @@ def main() -> int:
             print(f"FAIL: allowed.example should have passed the egress check; got {exc}")
             return 1
         except urllib.error.URLError:
-            print("OK: allowed.example -> URLError (passed egress check, failed at network as expected)")
+            print(
+                "OK: allowed.example -> URLError "
+                "(passed egress check, failed at network as expected)"
+            )
         except Exception as exc:
             print(f"FAIL: unexpected exception type {type(exc).__name__}: {exc}")
             return 1

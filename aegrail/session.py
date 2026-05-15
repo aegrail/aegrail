@@ -104,6 +104,8 @@ class Session(AbstractContextManager["Session"]):
         prompt_summary: str | None = None,
         response_summary: str | None = None,
         latency_ms: float | None = None,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
     ) -> None:
         """Record an LLM call that already happened.
 
@@ -111,6 +113,21 @@ class Session(AbstractContextManager["Session"]):
         like (OpenAI SDK, Anthropic SDK, litellm, raw HTTP) and tell
         aegrail what it cost. The runtime updates the budget and
         emits an audit event. Budget violations surface here.
+
+        Prompt-caching support (v0.2.5):
+          - `cache_read_tokens`: input tokens served from the
+            provider's prompt cache on this call. Subset of
+            `tokens_in`; caller's responsibility to keep that
+            relationship honest. Surfaces in the `llm_call` audit
+            event so ops can derive cache hit rate over time.
+          - `cache_write_tokens`: input tokens written to the
+            provider's cache on this call (Anthropic) or accounted
+            as cache writes by the provider's pricing model. Same
+            audit treatment.
+          - Both fields default to 0 (no caching). Budget's
+            `tokens_used` counts total tokens regardless of cache
+            status — `cost_usd` is where the cache discount is
+            reflected, and that stays the caller's calculation.
         """
         self._require_open()
         total_tokens = max(0, int(tokens_in)) + max(0, int(tokens_out))
@@ -126,6 +143,8 @@ class Session(AbstractContextManager["Session"]):
                 "prompt_summary": prompt_summary,
                 "response_summary": response_summary,
                 "latency_ms": latency_ms,
+                "cache_read_tokens": int(cache_read_tokens),
+                "cache_write_tokens": int(cache_write_tokens),
             },
         )
         self._check_budget_or_emit("llm_call")

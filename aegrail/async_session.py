@@ -92,10 +92,16 @@ class AsyncSession(Session):
         prompt_summary: str | None = None,
         response_summary: str | None = None,
         latency_ms: float | None = None,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
     ) -> None:
         """Record an LLM call. Same semantics as sync; provided as `async def`
         for API consistency so callers do not have to remember which methods
-        need `await`."""
+        need `await`.
+
+        See `Session.record_llm` for documentation of the cache token
+        parameters introduced in v0.2.5.
+        """
         self._require_open()
         total_tokens = max(0, int(tokens_in)) + max(0, int(tokens_out))
         self._state.add_tokens(total_tokens)
@@ -110,6 +116,8 @@ class AsyncSession(Session):
                 "prompt_summary": prompt_summary,
                 "response_summary": response_summary,
                 "latency_ms": latency_ms,
+                "cache_read_tokens": int(cache_read_tokens),
+                "cache_write_tokens": int(cache_write_tokens),
             },
         )
         self._check_budget_or_emit("llm_call")
