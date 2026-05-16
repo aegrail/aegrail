@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-05-16
+
+### Added — litellm auto-instrumentation
+
+Covers the long tail of LLM providers via litellm — Bedrock, Cohere,
+Mistral, ollama, vLLM, Groq, Vertex, Together, Replicate,
+HuggingFace, and ~100 others. With `AEGRAIL_INTERCEPT=1` set, Agent
+construction patches:
+
+- `litellm.completion` (sync, module-level function)
+- `litellm.acompletion` (async, module-level function)
+
+Unlike the openai/anthropic SDKs, litellm exposes these as
+module-level functions rather than instance methods, so the patch
+replaces the names on the `litellm` module itself. Both wrappers
+read the active session from the ContextVar, run
+`session.check_budget()` pre-call, run the original, and record
+the response via `session.record_llm(...)`.
+
+litellm normalizes every provider's response to the OpenAI Chat
+Completions shape, so usage extraction reuses the same
+`prompt_tokens` / `completion_tokens` path the openai adapter uses.
+
+Streams pass through. Cost stays caller-provided per design
+principle.
+
+8 new tests in `tests/test_litellm_integration.py`. Total suite now
+177 tests, all green.
+
 ## [0.3.1] — 2026-05-16
 
 ### Added — Anthropic SDK auto-instrumentation
