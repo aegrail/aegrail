@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".assets/logo.svg" alt="aegrail" width="120">
+</p>
+
 # aegrail
 
 [![CI](https://github.com/aegrail/aegrail/actions/workflows/ci.yml/badge.svg)](https://github.com/aegrail/aegrail/actions/workflows/ci.yml)
