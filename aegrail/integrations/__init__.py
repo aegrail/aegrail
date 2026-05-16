@@ -48,8 +48,10 @@ def install_all() -> list[str]:
 
 
 def _registry() -> dict[str, callable]:
+    from .anthropic_instrument import install as _install_anthropic
     from .openai_instrument import install as _install_openai
 
     return {
         "openai": _install_openai,
+        "anthropic": _install_anthropic,
     }

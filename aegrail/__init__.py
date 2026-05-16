@@ -40,7 +40,7 @@ from .interceptors import (
 from .session import Session
 from .tool import Tool
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "AegrailError",

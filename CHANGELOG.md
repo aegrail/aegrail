@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-05-16
+
+### Added — Anthropic SDK auto-instrumentation
+
+Same shape as the OpenAI integration shipped in 0.3.0, now extended
+to the Anthropic Python SDK. With `AEGRAIL_INTERCEPT=1` set,
+constructing an Agent patches:
+
+- `anthropic.resources.messages.Messages.create` (sync)
+- `anthropic.resources.messages.AsyncMessages.create` (async)
+- The `anthropic.resources.beta.messages` equivalents when present
+
+Each call now transparently runs `session.check_budget()` pre-call,
+runs the original method, then extracts model + usage and calls
+`session.record_llm(...)`. Includes first-class support for
+Anthropic's prompt-caching attribution:
+
+- `cache_read_input_tokens` → `cache_read_tokens` in the audit event
+- `cache_creation_input_tokens` → `cache_write_tokens`
+
+Streaming requests pass through (the SSE stream object would need
+shape-specific handling for the final `message_stop` usage frame).
+
+8 new tests in `tests/test_anthropic_integration.py` covering patch
+installation, idempotency, sync token recording with cache fields,
+no-session passthrough, streaming passthrough, post-record budget
+breach, pre-check rejection, and async coroutine flow. Total suite
+is now 169 tests, all green.
+
 ## [0.3.0] — 2026-05-16
 
 ### Added — OpenAI SDK auto-instrumentation
