@@ -143,6 +143,69 @@ identity, OR the **Secrets Store CSI Driver** + Azure Key Vault
 provider. Both reach the same end state — a K8s `Secret` synced from
 Key Vault, transparently CMK-encrypted on the Azure side.
 
+## Deployment, Job, or StatefulSet?
+
+The right workload kind for an agent is almost always **`Deployment`**.
+StatefulSet is a common wrong default for agents — worth being
+explicit about when each fits.
+
+| Kind | Use when | aegrail engine pattern |
+|---|---|---|
+| **Deployment** | The agent serves requests (REST / gRPC / queue consumer). Session state lives in Redis / Postgres / a vector DB — not on the pod's local disk. This is ~95% of production agents. | Engine as sidecar in the same pod. |
+| **Job / CronJob** | One-shot batch agent (a LangGraph workflow run, a scheduled report generator, an evaluation job). The pod exits after the work finishes. | Engine as sidecar; main container exit signals job completion. |
+| **StatefulSet** | The pod itself carries durable state that survives restarts and the identity of pod-N matters. Legitimately rare for agents. | Same sidecar pattern as Deployment. |
+| **DaemonSet** | One agent process per node (rare, niche use case for node-local observability agents). | Engine as a separate per-node DaemonSet, not as a sidecar. |
+
+### Why StatefulSet is usually the wrong default
+
+A `StatefulSet` gives you stable pod identity (`pod-0`, `pod-1`), a
+stable PV per ordinal, and ordered rolling updates. You need those
+when **the pod owns durable state** — Postgres primaries, Kafka
+brokers, Cassandra rings.
+
+Agents almost never own durable local state. Look at where state
+actually lives:
+
+| Agent state | Where it lives | Pod-stateful? |
+|---|---|---|
+| In-flight session (one user turn) | RAM, dies with the pod | No |
+| Conversation history | External (Redis, Postgres, DynamoDB) | No |
+| Vector DB | External service (Pinecone, Weaviate, pgvector) | No |
+| LLM weights | Provider API (OpenAI, Anthropic, Bedrock) | No |
+| Audit chain | Stream out (stdout → log aggregator → S3) | No |
+| Long-running workflow checkpoint | External (LangGraph state in Postgres, Temporal, Step Functions) | No |
+
+If you find yourself reaching for StatefulSet, ask: *what's on local
+disk that I can't move to a service?* Usually nothing. Push it out,
+use Deployment.
+
+### Where StatefulSet *is* the right choice
+
+Three legitimate cases:
+
+1. **Self-hosted model server with local weights cached on disk**
+   (vLLM, Ollama, TGI with 30 GB of model files). StatefulSet + PV
+   avoids re-downloading weights on every pod restart. But here the
+   StatefulSet is the *model server* — the agent talking to it
+   stays a Deployment.
+2. **Local vector index baked into the pod** (FAISS / hnswlib on
+   local SSD). Persisting the index across restarts justifies a PV.
+   Usually an anti-pattern; externalize the index.
+3. **Sticky-session agents** where each user is routed to the same
+   pod for an entire conversation and the session lives in RAM. Real
+   but scales poorly. Push the session to Redis instead.
+
+### One anti-pattern to avoid
+
+Some teams reach for StatefulSet because they want "stable pod
+names for log aggregation." That's the wrong reason. Log
+aggregators join on pod labels, not pod ordinals. The
+`aegrail.io/identity` label (consumed by the engine sidecar via
+[`agentIdentityFromLabel`](https://github.com/arpitcoder/aegrail-engine)
+since engine v0.1.1) is the right primitive — your audit chain
+stays stable across pod restarts because the **agent identity is a
+label, not a pod name**.
+
 ## The aegrail manifests (cloud-independent)
 
 Once the secret is being reconciled in (ESO or CSI), the agent's K8s
