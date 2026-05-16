@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  aegrail brand mark.
+
+  ∩ — the math symbol for set intersection.
+  Rooted in the project's core design principle: authorization is
+  the intersection of agent capability AND invoking user permission,
+  not either one alone. The mark IS the contract.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="aegrail">
+  <rect width="256" height="256" rx="44" ry="44" fill="#0F172A"/>
+  <rect x="61" y="78" width="34" height="110" rx="17" fill="#2DD4BF"/>
+  <rect x="161" y="78" width="34" height="110" rx="17" fill="#2DD4BF"/>
+  <path d="M 78 78 A 50 50 0 0 1 178 78"
+        stroke="#2DD4BF" stroke-width="34" fill="none" stroke-linecap="butt"/>
+</svg>

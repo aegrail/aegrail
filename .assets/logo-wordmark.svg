@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- aegrail horizontal lockup: mark + wordmark, for README headers. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" width="720" height="200" role="img" aria-label="aegrail">
+  <!-- Mark on the left, scaled down to 160 × 160 -->
+  <g transform="translate(0, 20)">
+    <rect width="160" height="160" rx="28" ry="28" fill="#0F172A"/>
+    <rect x="38.13" y="48.75" width="21.25" height="68.75" rx="10.625" fill="#2DD4BF"/>
+    <rect x="100.63" y="48.75" width="21.25" height="68.75" rx="10.625" fill="#2DD4BF"/>
+    <path d="M 48.75 48.75 A 31.25 31.25 0 0 1 111.25 48.75"
+          stroke="#2DD4BF" stroke-width="21.25" fill="none" stroke-linecap="butt"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="200" y="128"
+        font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="100"
+        font-weight="900"
+        letter-spacing="-2"
+        fill="#0F172A">aegrail</text>
+</svg>
