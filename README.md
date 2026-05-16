@@ -1,15 +1,18 @@
-<p align="center">
-  <img src=".assets/logo.svg" alt="aegrail" width="120">
-</p>
+<div align="center">
+
+<img src=".assets/logo.svg" alt="aegrail" width="140">
 
 # aegrail
 
-[![CI](https://github.com/aegrail/aegrail/actions/workflows/ci.yml/badge.svg)](https://github.com/aegrail/aegrail/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/aegrail.svg)](https://pypi.org/project/aegrail/)
-[![Python](https://img.shields.io/pypi/pyversions/aegrail.svg)](https://pypi.org/project/aegrail/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-
 **The runtime contract for AI agents in production.**
+
+[![CI](https://img.shields.io/github/actions/workflow/status/aegrail/aegrail/ci.yml?style=flat-square&label=CI&logo=github&logoColor=white&color=2DD4BF&labelColor=0F172A)](https://github.com/aegrail/aegrail/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/aegrail?style=flat-square&label=PyPI&color=2DD4BF&labelColor=0F172A)](https://pypi.org/project/aegrail/)
+[![Python](https://img.shields.io/pypi/pyversions/aegrail?style=flat-square&label=Python&color=2DD4BF&labelColor=0F172A)](https://pypi.org/project/aegrail/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-2DD4BF?style=flat-square&labelColor=0F172A)](LICENSE)
+[![Engine](https://img.shields.io/badge/engine-v0.4.2-2DD4BF?style=flat-square&labelColor=0F172A&logo=kubernetes&logoColor=white)](https://github.com/aegrail/aegrail-engine)
+
+</div>
 
 A container runtime assumes deterministic code. An agent isn't deterministic. Run your agents on something that knows that.
 
