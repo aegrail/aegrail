@@ -199,5 +199,5 @@ others) upstream of aegrail for defense-in-depth.
    it was written.
 
 If an auditor asks for control evidence aegrail does not provide today,
-open an issue at https://github.com/arpitcoder/aegrail/issues — that's
+open an issue at https://github.com/aegrail/aegrail/issues — that's
 the direct path to influencing the next release's scope.

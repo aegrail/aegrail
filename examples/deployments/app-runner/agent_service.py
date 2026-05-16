@@ -133,7 +133,7 @@ def _call_openrouter(message: str) -> tuple[str, str, int, int]:
         headers={
             "Authorization": f"Bearer {OPENROUTER_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/arpitcoder/aegrail",
+            "HTTP-Referer": "https://github.com/aegrail/aegrail",
             "X-Title": "aegrail-app-runner-sample",
         },
         method="POST",

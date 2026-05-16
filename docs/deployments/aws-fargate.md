@@ -194,7 +194,7 @@ namespace. For aegrail's forthcoming Go egress proxy:
 ```json
 {
   "name": "aegrail-engine",
-  "image": "ghcr.io/arpitcoder/aegrail-engine:v0.3.0",
+  "image": "ghcr.io/aegrail/aegrail-engine:v0.3.0",
   "essential": false,
   "portMappings": [{"containerPort": 9099, "protocol": "tcp"}],
   "environment": [

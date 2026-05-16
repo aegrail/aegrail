@@ -1,6 +1,6 @@
 # aegrail
 
-[![CI](https://github.com/arpitcoder/aegrail/actions/workflows/ci.yml/badge.svg)](https://github.com/arpitcoder/aegrail/actions/workflows/ci.yml)
+[![CI](https://github.com/aegrail/aegrail/actions/workflows/ci.yml/badge.svg)](https://github.com/aegrail/aegrail/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/aegrail.svg)](https://pypi.org/project/aegrail/)
 [![Python](https://img.shields.io/pypi/pyversions/aegrail.svg)](https://pypi.org/project/aegrail/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -58,7 +58,7 @@ pip install aegrail
 
 > **Note:** the first PyPI release will be `v0.2.0`. Until then, install from source:
 > ```bash
-> git clone https://github.com/arpitcoder/aegrail
+> git clone https://github.com/aegrail/aegrail
 > cd aegrail && pip install -e .
 > ```
 
@@ -155,7 +155,7 @@ Full async demo (against local Ollama, no API key): [`examples/async_demo.py`](e
 ## First 60 seconds
 
 ```bash
-git clone https://github.com/arpitcoder/aegrail
+git clone https://github.com/aegrail/aegrail
 cd aegrail
 pip install -e .
 

@@ -47,7 +47,7 @@ This document describes the architecture that closes both gaps.
 ┌────────────────────────────────────────────────────────────────────┐
 │  Layer 2 — enforcement engine                                      │
 │  Single binary, language-agnostic, the actual policy boundary.     │
-│  - aegrail-engine   (Go, lives in arpitcoder/aegrail-engine repo)  │
+│  - aegrail-engine   (Go, lives in aegrail/aegrail-engine repo)  │
 │    - allowlist policy                                              │
 │    - audit chain                                                   │
 │    - HTTP forward proxy (egress enforcement)                       │
@@ -69,13 +69,13 @@ This document describes the architecture that closes both gaps.
 
 | Component | State today | Repo | Long-term |
 |---|---|---|---|
-| Python library `aegrail` | Shipped to PyPI (v0.2.3) | `arpitcoder/aegrail` | Becomes the Python SDK on Layer 3. Public API stays stable. |
-| Tool ACL, Budget, AuditEvent, identity, chain verification | Implemented in Python | `arpitcoder/aegrail` | Re-implemented in Go inside the engine; Python SDK becomes a thin client. |
-| Audit log format (JSONL + SHA-256 chain) | Defined in Python | `arpitcoder/aegrail` | Becomes the canonical wire format. Any language can produce and verify these. |
-| OWASP / SOC 2 / ISO 27001 / NIST mapping | `COMPLIANCE.md` in Python repo | `arpitcoder/aegrail` | Stays here as the canonical mapping document; engine inherits. |
-| Egress allowlist enforcement | Not yet shipped | `arpitcoder/aegrail-engine` | Go sidecar; v0.3.0 milestone |
-| Helm chart for K8s deployment | Not yet shipped | `arpitcoder/aegrail-engine` | Ships with v0.3.0 |
-| Python-level interceptors (`intercept_outbound`, audit hook) | Not yet shipped | `arpitcoder/aegrail` | v0.2.4 milestone — fills the in-Python defense-in-depth slot above the sidecar |
+| Python library `aegrail` | Shipped to PyPI (v0.2.3) | `aegrail/aegrail` | Becomes the Python SDK on Layer 3. Public API stays stable. |
+| Tool ACL, Budget, AuditEvent, identity, chain verification | Implemented in Python | `aegrail/aegrail` | Re-implemented in Go inside the engine; Python SDK becomes a thin client. |
+| Audit log format (JSONL + SHA-256 chain) | Defined in Python | `aegrail/aegrail` | Becomes the canonical wire format. Any language can produce and verify these. |
+| OWASP / SOC 2 / ISO 27001 / NIST mapping | `COMPLIANCE.md` in Python repo | `aegrail/aegrail` | Stays here as the canonical mapping document; engine inherits. |
+| Egress allowlist enforcement | Not yet shipped | `aegrail/aegrail-engine` | Go sidecar; v0.3.0 milestone |
+| Helm chart for K8s deployment | Not yet shipped | `aegrail/aegrail-engine` | Ships with v0.3.0 |
+| Python-level interceptors (`intercept_outbound`, audit hook) | Not yet shipped | `aegrail/aegrail` | v0.2.4 milestone — fills the in-Python defense-in-depth slot above the sidecar |
 | Node / Go / JVM SDKs | Not started | TBD | Built as thin clients once the engine wire protocol stabilises |
 
 ## Sequencing
@@ -91,7 +91,7 @@ v0.2.x  Python library — adoption polish (current state)
         - v0.2.5: aegrail-lint (CI-time enforcement)
 
 v0.3.0  Go sidecar — egress proxy + Helm chart
-        - lives in arpitcoder/aegrail-engine
+        - lives in aegrail/aegrail-engine
         - first multi-language step: enforcement no longer
           requires the agent to be in Python
         - Helm chart for K8s sidecar injection
@@ -166,10 +166,10 @@ bridge when a real use case demands it.
 
 ## Where this document lives
 
-- `arpitcoder/aegrail` → this file (overall architecture, both layers)
-- `arpitcoder/aegrail-engine` → engine-specific design + deployment
+- `aegrail/aegrail` → this file (overall architecture, both layers)
+- `aegrail/aegrail-engine` → engine-specific design + deployment
   notes (lives there because that's where the engine code is)
-- `COMPLIANCE.md` in `arpitcoder/aegrail` → control mappings, shared
+- `COMPLIANCE.md` in `aegrail/aegrail` → control mappings, shared
 
 Updates to architectural decisions land in this file by PR. The
 roadmap-discipline rules in `CLAUDE.md` govern when structural work

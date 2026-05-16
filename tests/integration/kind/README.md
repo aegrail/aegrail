@@ -27,7 +27,7 @@ the test orchestrator exits 0.
 - Ollama or any real LLM (the interceptors don't care what the egress
   destination is — fast, deterministic, CI-friendly)
 - The forthcoming aegrail-engine sidecar (that has its own kind
-  test, in the `arpitcoder/aegrail-engine` repo)
+  test, in the `aegrail/aegrail-engine` repo)
 - Cross-pod or cross-namespace policy
 
 ## Prerequisites

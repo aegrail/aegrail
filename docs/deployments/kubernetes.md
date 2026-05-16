@@ -22,11 +22,11 @@ much developer cooperation you have:
 
 **Verified end-to-end 2026-05-16** on kind:
 - Webhook auto-injection path (9 scenarios) —
-  [`aegrail-engine/tests/kind/run-webhook.sh`](https://github.com/arpitcoder/aegrail-engine/blob/main/tests/kind/run-webhook.sh)
+  [`aegrail-engine/tests/kind/run-webhook.sh`](https://github.com/aegrail/aegrail-engine/blob/main/tests/kind/run-webhook.sh)
 - Engine proxy + Ollama token parsing (13 scenarios) —
-  [`aegrail-engine/tests/kind/run.sh`](https://github.com/arpitcoder/aegrail-engine/blob/main/tests/kind/run.sh)
+  [`aegrail-engine/tests/kind/run.sh`](https://github.com/aegrail/aegrail-engine/blob/main/tests/kind/run.sh)
 - MITM TLS termination + token enforcement end-to-end (Go test) —
-  [`internal/proxy/mitm_test.go`](https://github.com/arpitcoder/aegrail-engine/blob/main/internal/proxy/mitm_test.go)
+  [`internal/proxy/mitm_test.go`](https://github.com/aegrail/aegrail-engine/blob/main/internal/proxy/mitm_test.go)
 
 The library-in-code path is also kind-validated against Ollama —
 sample under [`tests/integration/kind/`](../../tests/integration/kind/)
@@ -325,7 +325,7 @@ Some teams reach for StatefulSet because they want "stable pod
 names for log aggregation." That's the wrong reason. Log
 aggregators join on pod labels, not pod ordinals. The
 `aegrail.io/identity` label (consumed by the engine sidecar via
-[`agentIdentityFromLabel`](https://github.com/arpitcoder/aegrail-engine)
+[`agentIdentityFromLabel`](https://github.com/aegrail/aegrail-engine)
 since engine v0.1.1) is the right primitive — your audit chain
 stays stable across pod restarts because the **agent identity is a
 label, not a pod name**.
@@ -511,6 +511,6 @@ Two enforcement layers active:
 
 The third layer — the dedicated aegrail-engine sidecar — is
 roadmap v0.3, shipped via the
-[`arpitcoder/aegrail-engine`](https://github.com/arpitcoder/aegrail-engine)
+[`aegrail/aegrail-engine`](https://github.com/aegrail/aegrail-engine)
 repo's Helm chart. Until then, the combination above is the
 production-grade story.

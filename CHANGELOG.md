@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-05-16
+
+### Changed — repository moved to `aegrail` GitHub organisation
+
+Metadata-only release. The Python SDK and engine sidecar are now
+hosted under the dedicated `aegrail` GitHub organisation:
+
+- `github.com/arpitcoder/aegrail` → `github.com/aegrail/aegrail`
+- `github.com/arpitcoder/aegrail-engine` →
+  `github.com/aegrail/aegrail-engine`
+
+GitHub serves 301 redirects from the old URLs indefinitely, so
+links continue to work, but new content (the canonical README on
+PyPI, docs, X posts) references the new addresses.
+
+No code changes. The PyPI package name `aegrail` is unchanged,
+all existing pinned versions remain installable, and
+`Agent.from_env()` and the four integrations behave identically.
+
 ## [0.3.3] — 2026-05-16
 
 ### Added — LangChain callback handler
@@ -469,12 +488,12 @@ Initial public release. Three primitives, deliberately.
 - Zero hard runtime dependencies beyond `pydantic`.
 - 48 tests, 94% line coverage. Ruff clean.
 
-[Unreleased]: https://github.com/arpitcoder/aegrail/compare/v0.2.5...HEAD
-[0.2.5]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.5
-[0.2.4]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.4
-[0.2.3]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.3
-[0.2.2]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.2
-[0.2.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.2.1
+[Unreleased]: https://github.com/aegrail/aegrail/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/aegrail/aegrail/releases/tag/v0.2.5
+[0.2.4]: https://github.com/aegrail/aegrail/releases/tag/v0.2.4
+[0.2.3]: https://github.com/aegrail/aegrail/releases/tag/v0.2.3
+[0.2.2]: https://github.com/aegrail/aegrail/releases/tag/v0.2.2
+[0.2.1]: https://github.com/aegrail/aegrail/releases/tag/v0.2.1
 [0.2.0]: # withdrawn from PyPI on 2026-05-13 — superseded by 0.2.1
-[0.1.1]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.1
-[0.1.0]: https://github.com/arpitcoder/aegrail/releases/tag/v0.1.0
+[0.1.1]: https://github.com/aegrail/aegrail/releases/tag/v0.1.1
+[0.1.0]: https://github.com/aegrail/aegrail/releases/tag/v0.1.0

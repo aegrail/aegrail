@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aegrail"
-version = "0.3.3"
+version = "0.3.4"
 description = "The runtime contract for AI agents in production."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,9 +36,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/arpitcoder/aegrail"
-Repository = "https://github.com/arpitcoder/aegrail"
-Issues = "https://github.com/arpitcoder/aegrail/issues"
+Homepage = "https://github.com/aegrail/aegrail"
+Repository = "https://github.com/aegrail/aegrail"
+Issues = "https://github.com/aegrail/aegrail/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["aegrail"]

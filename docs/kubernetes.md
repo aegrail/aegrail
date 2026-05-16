@@ -16,7 +16,7 @@ local development and a hardened K8s deployment; the platform
 controls enforcement via pod-level env vars.
 
 For the forthcoming sidecar (engine + Helm chart in
-[`arpitcoder/aegrail-engine`](https://github.com/arpitcoder/aegrail-engine)),
+[`aegrail/aegrail-engine`](https://github.com/aegrail/aegrail-engine)),
 which adds network-layer enforcement on top of the in-process
 interceptors documented below, see that repo.
 
