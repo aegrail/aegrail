@@ -105,9 +105,10 @@ The webhook injects:
   `HTTPS_PROXY=http://localhost:8080`,
   `NO_PROXY=localhost,127.0.0.1,.svc,.cluster.local` on `app`.
 - `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`
-  pointing at `/etc/aegrail/mitm-ca/ca.crt` so HTTPS calls to
+  pointing at `/etc/aegrail/mitm-ca/tls.crt` so HTTPS calls to
   api.openai.com / api.anthropic.com succeed through the engine's
-  MITM.
+  MITM. (Path was `ca.crt` in v0.4.1; aligned with the
+  `kubernetes.io/tls` Secret key in v0.4.3.)
 - Volume mounts wiring it all together.
 
 Your `app` container runs unchanged. Every outbound LLM call is
