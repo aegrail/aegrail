@@ -6,6 +6,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-05-16
+
+### Added — LangChain callback handler
+
+`aegrail.integrations.langchain.AegrailCallbackHandler` — a drop-in
+LangChain `BaseCallbackHandler` that routes LangChain lifecycle
+events through the active aegrail session. Usage:
+
+```python
+from aegrail.integrations.langchain import AegrailCallbackHandler
+chain = LLMChain(
+    llm=ChatOpenAI(model="gpt-4o-mini"),
+    prompt=prompt,
+    callbacks=[AegrailCallbackHandler()],
+)
+```
+
+Implements:
+- `on_llm_start` / `on_chat_model_start` — pre-checks budget so
+  `BudgetExceeded` surfaces *before* the upstream call.
+- `on_llm_end` — extracts model + token usage from the LangChain
+  `LLMResult`. Tolerant of both OpenAI shape
+  (`llm_output.token_usage.prompt_tokens`) and Anthropic shape
+  (`llm_output.usage.input_tokens`) including prompt-cache fields.
+- `on_tool_start` — emits a `tool_call` audit event for LangChain
+  tools, logging input length only (per PII-safe-default principle).
+- `on_llm_error` / `on_tool_error` — emit an `error` audit event
+  tagged with `source: langchain.llm` or `source: langchain.tool`.
+- `on_chain_start` / `on_chain_end` / `on_agent_action` /
+  `on_agent_finish` — explicit no-ops. Chains are framework
+  composition, not security boundaries, and auditing them adds
+  noise without changing what aegrail can enforce.
+
+Import is graceful when LangChain isn't installed: the handler
+class falls back to inheriting from `object` so user code that
+imports the module won't break, and the existing openai/anthropic/
+litellm auto-instrumentation continues to cover LangChain code
+that uses those SDKs underneath. The callback handler adds
+framework-aware audit events on top.
+
+8 new tests in `tests/test_langchain_integration.py` exercising
+the handler directly without requiring a real LangChain install.
+Total suite now 185 tests, all green.
+
+### What this completes
+
+The 0.3.x series now covers the major adoption paths for AI agents
+shipping in production:
+- direct openai / anthropic / litellm SDK calls (auto-patched on
+  import via `AEGRAIL_INTERCEPT=1`)
+- LangChain via callbacks (opt-in handler, framework-aware events)
+- any framework that uses the above SDKs under the hood (covered
+  transparently — LangChain ChatOpenAI, ChatAnthropic, MCP servers,
+  custom wrappers)
+
+If you can install aegrail and set five env vars, your existing
+agent now has identity, budget kill-switches, tamper-evident audit,
+and tool-ACL coverage with zero code change.
+
 ## [0.3.2] — 2026-05-16
 
 ### Added — litellm auto-instrumentation
