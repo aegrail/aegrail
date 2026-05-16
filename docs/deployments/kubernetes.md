@@ -1,14 +1,138 @@
 # Kubernetes — production-ready aegrail deployment
 
 This is the **production** path for running an aegrail-protected
-agent on Kubernetes: non-secret policy in a ConfigMap, LLM provider
-keys in a KMS-backed managed secret store pulled via the **External
-Secrets Operator** (or equivalent), in-process interceptors enabled
-for defence-in-depth.
+agent on Kubernetes. There are now two patterns, depending on how
+much developer cooperation you have:
 
-**Verified end-to-end 2026-05-15** on kind for the ConfigMap → env →
-`Agent.from_env()` path. Sample under
-[`tests/integration/kind/`](../../tests/integration/kind/).
+- **Zero-developer-effort (recommended, v0.4.x engine):** install
+  the `aegrail-engine` Helm chart with the **mutating admission
+  webhook** and **MITM** enabled. Label a namespace
+  `aegrail.io/inject=enabled`. Every pod in that namespace gets the
+  engine sidecar auto-injected, `HTTP_PROXY`/`HTTPS_PROXY` set on
+  every container, the MITM CA mounted, and HTTPS trust env vars
+  configured. The agent author writes zero aegrail code; HTTPS
+  traffic to public LLM providers gets token-accounted at the
+  network layer.
+
+- **Library-in-code pattern (still supported):** developers
+  `pip install aegrail`, call `Agent.from_env()`, and the SDK
+  enforces in-process. ConfigMap supplies the policy, External
+  Secrets Operator supplies the LLM provider key. This was the
+  original pattern; it remains correct.
+
+**Verified end-to-end 2026-05-16** on kind:
+- Webhook auto-injection path (9 scenarios) —
+  [`aegrail-engine/tests/kind/run-webhook.sh`](https://github.com/arpitcoder/aegrail-engine/blob/main/tests/kind/run-webhook.sh)
+- Engine proxy + Ollama token parsing (13 scenarios) —
+  [`aegrail-engine/tests/kind/run.sh`](https://github.com/arpitcoder/aegrail-engine/blob/main/tests/kind/run.sh)
+- MITM TLS termination + token enforcement end-to-end (Go test) —
+  [`internal/proxy/mitm_test.go`](https://github.com/arpitcoder/aegrail-engine/blob/main/internal/proxy/mitm_test.go)
+
+The library-in-code path is also kind-validated against Ollama —
+sample under [`tests/integration/kind/`](../../tests/integration/kind/)
+in the aegrail repo.
+
+## Pattern A: zero-developer-effort (engine + webhook + MITM)
+
+For platform teams: enable per-namespace, the dev team writes
+nothing.
+
+### 1. Install the engine chart with webhook + MITM enabled
+
+```bash
+helm repo add aegrail https://arpitcoder.github.io/aegrail-engine
+helm repo update
+
+# Pre-create the MITM CA Secret in the engine's namespace.
+# Easiest: let the engine generate it on first install with
+# webhook off, capture the CA from the pod logs, then turn on
+# webhook+MITM in a second helm upgrade.
+helm install aegrail-engine aegrail/aegrail-engine \
+  --namespace aegrail-system --create-namespace \
+  --set 'policy.allowlist[0]=api.openai.com' \
+  --set 'policy.allowlist[1]=*.anthropic.com' \
+  --set 'webhook.enabled=true' \
+  --set 'mitm.hosts=api.openai.com,api.anthropic.com' \
+  --set 'mitm.caSecretName=aegrail-mitm-ca' \
+  --set 'limits.maxTokens=1000000'
+```
+
+### 2. Copy the CA Secret into each target namespace
+
+K8s does not allow Pod Secret mounts to reference cross-namespace
+Secrets, so the CA must exist in each namespace where injection is
+labeled.
+
+```bash
+for ns in agents-prod agents-staging; do
+  kubectl get secret aegrail-mitm-ca -n aegrail-system -o yaml \
+    | sed "s/namespace: aegrail-system/namespace: $ns/" \
+    | kubectl apply -f -
+done
+```
+
+A first-class controller that replicates this Secret automatically
+across labeled namespaces is engine roadmap v0.5.0.
+
+### 3. Label the namespaces you want covered
+
+```bash
+kubectl label namespace agents-prod aegrail.io/inject=enabled
+kubectl label namespace agents-staging aegrail.io/inject=enabled
+```
+
+### 4. Apply an agent pod — the webhook does the rest
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-agent
+  namespace: agents-prod
+  labels:
+    aegrail.io/identity: support-bot-v1
+spec:
+  containers:
+    - name: app
+      image: your-registry/agent:1.0
+```
+
+The webhook injects:
+- The `aegrail-engine` sidecar container with the configured
+  allowlist, policy, audit destination, MITM CA, and identity
+  binding from the pod label.
+- `HTTP_PROXY=http://localhost:8080`,
+  `HTTPS_PROXY=http://localhost:8080`,
+  `NO_PROXY=localhost,127.0.0.1,.svc,.cluster.local` on `app`.
+- `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`
+  pointing at `/etc/aegrail/mitm-ca/ca.crt` so HTTPS calls to
+  api.openai.com / api.anthropic.com succeed through the engine's
+  MITM.
+- Volume mounts wiring it all together.
+
+Your `app` container runs unchanged. Every outbound LLM call is
+captured, allowlist-checked, rate-limited, budget-accounted,
+audited.
+
+### What gets enforced at the engine layer
+
+| Concern | Engine enforces? |
+|---|---|
+| Egress allowlist (any HTTP/HTTPS, any language) | Yes |
+| Request count / rate limit | Yes (`limits.maxRequests`, `limits.rate`) |
+| Token budget | Yes for MITM'd hosts AND for plain-HTTP forwards (Ollama, in-cluster gateways) |
+| Audit chain (SHA-256-linked) | Yes |
+| Identity binding from pod label | Yes (downward API) |
+| Tool ACL | No — that's the in-process SDK's job (Pattern B) |
+| Approval gates | No — engine roadmap v0.5+ |
+| Per-user dual-principal authz | No — engine has no concept of the invoking user |
+
+For pattern B (library-in-code), the SDK adds tool ACL +
+dual-principal authz + agent-side budget enforcement before the
+LLM call. The two patterns combine: install the chart AND use the
+SDK, and you get both layers.
+
+## Pattern B: library-in-code (developer cooperation)
 
 ## At a glance
 
