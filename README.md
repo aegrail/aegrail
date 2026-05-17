@@ -109,15 +109,14 @@ Layer 4's value is in being small and load-bearing, not big and ergonomic. `aegr
 
 ---
 
-## Adoption shape
+## How it ships
 
-| Layer | Component | License | Status |
-|---|---|---|---|
-| In-process SDK | [`aegrail`](https://github.com/aegrail/aegrail) (Python) | Apache 2.0 | Stable |
-| Network sidecar | [`aegrail-engine`](https://github.com/aegrail/aegrail-engine) (Go + Helm) | Apache 2.0 | Stable |
-| Hosted control plane | Fleet inventory, audit search, RBAC, SOC2 inheritance | Commercial | Roadmap (v1.0) |
+| Layer | Component | License |
+|---|---|---|
+| In-process SDK | [`aegrail`](https://github.com/aegrail/aegrail) (Python) | Apache 2.0 |
+| Network sidecar | [`aegrail-engine`](https://github.com/aegrail/aegrail-engine) (Go + Helm) | Apache 2.0 |
 
-The two open-source components are Apache 2.0 and will stay that way. A security library you can't audit is not a security library. The future hosted control plane is the commercial layer — same shape as Sentry, Grafana, GitLab. If you self-host everything, you're never blocked.
+Two components, both Apache 2.0. A security library you can't audit isn't a security library — read the code, audit the enforcement model, run it where you need it.
 
 ---
 
@@ -455,9 +454,9 @@ For K8s deployment patterns (developer-effortless `AEGRAIL_INTERCEPT=1` env-var 
 - **v0.2.2** — `AsyncSession` with hard `wall_seconds` enforcement mid-tool-call _(shipped)_
 - **v0.2.3** — tamper-evident audit chain + `COMPLIANCE.md` (SOC 2 / ISO 27001 / NIST mappings) + Tool schema exports for OpenAI/Anthropic _(shipped)_
 - **v0.2.x** — provider helpers (OpenAI/Anthropic/litellm)
-- **v0.3** — egress allowlist proxy (network-level enforcement)
-- **v0.4** — approval gates for irreversible actions
-- **v1.0** — hosted control plane (paid)
+- **v0.3** — egress allowlist proxy (network-level enforcement) _(shipped via [`aegrail-engine`](https://github.com/aegrail/aegrail-engine))_
+- **v0.4** — HTTPS MITM + webhook auto-injection _(shipped via engine v0.4.x)_
+- **v0.5** — approval gates for irreversible actions
 
 ---
 
