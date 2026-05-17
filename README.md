@@ -4,25 +4,47 @@
 
 # aegrail
 
-**The runtime contract for AI agents in production.**
+**Layer 4 for AI agents. The runtime governance contract that every production agent is missing.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/aegrail/aegrail/ci.yml?style=flat-square&label=CI&logo=github&logoColor=white&color=2DD4BF&labelColor=0F172A)](https://github.com/aegrail/aegrail/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/aegrail?style=flat-square&label=PyPI&color=2DD4BF&labelColor=0F172A)](https://pypi.org/project/aegrail/)
 [![Python](https://img.shields.io/pypi/pyversions/aegrail?style=flat-square&label=Python&color=2DD4BF&labelColor=0F172A)](https://pypi.org/project/aegrail/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-2DD4BF?style=flat-square&labelColor=0F172A)](LICENSE)
-[![Engine](https://img.shields.io/badge/engine-v0.4.2-2DD4BF?style=flat-square&labelColor=0F172A&logo=kubernetes&logoColor=white)](https://github.com/aegrail/aegrail-engine)
+[![Engine](https://img.shields.io/badge/engine-v0.4.3-2DD4BF?style=flat-square&labelColor=0F172A&logo=kubernetes&logoColor=white)](https://github.com/aegrail/aegrail-engine)
 
 </div>
 
-A container runtime assumes deterministic code. An agent isn't deterministic. Run your agents on something that knows that.
+A small, opinionated, provider-neutral runtime that enforces identity, budget, audit, and capability ACL on AI agents — across any LLM provider, any framework, any vertical. Engineers can install it on Friday. CISOs can read the code on Monday.
 
 ---
 
-## Why this exists
+## The missing Layer 4
 
-For 15 years, "container in production" meant **microservice**. Every piece of cloud-native infrastructure — Kubernetes, Istio, Prometheus, OPA — was designed around assumptions a microservice satisfies. Those assumptions are load-bearing.
+Every production AI agent stack looks like this:
 
-An agent in a container looks identical. Same Dockerfile, same pod spec, same `kubectl apply`. But it violates almost every one of those assumptions:
+```
+┌──────────────────────────────────────────────────────────┐
+│  Layer 5: Domain business logic                          │  insurance / finance / health / legal
+├──────────────────────────────────────────────────────────┤
+│  Layer 4: Runtime governance contract       ← THE GAP    │  identity, budget, audit, ACL
+├──────────────────────────────────────────────────────────┤
+│  Layer 3: Agent framework                                │  LangChain, LlamaIndex, AutoGen, MCP
+├──────────────────────────────────────────────────────────┤
+│  Layer 2: LLM provider SDK                               │  openai, anthropic, google-genai, bedrock
+├──────────────────────────────────────────────────────────┤
+│  Layer 1: LLM API                                        │  gpt-4o, claude-opus, gemini, llama
+└──────────────────────────────────────────────────────────┘
+```
+
+Layer 4 is missing. Frameworks won't fill it (they compete on ergonomics, not opinions). SDKs can't (they ship per-provider). Domain teams shouldn't (every team re-inventing audit chains badly). The model itself can't (it's the thing you're trying to constrain).
+
+So every company building agents in production today either reinvents Layer 4 in-house — eight engineers, eight repos, eight broken audit formats — or pretends it doesn't exist and waits for the regulator. `aegrail` is the open-source implementation of Layer 4.
+
+---
+
+## Why agents specifically need it
+
+A container runtime assumes deterministic code. An agent isn't deterministic. The cloud-native stack — Kubernetes, Istio, Prometheus, OPA — was built around assumptions a microservice satisfies. Agents violate them:
 
 | Property | Microservice | Agent |
 |---|---|---|
@@ -34,26 +56,68 @@ An agent in a container looks identical. Same Dockerfile, same pod spec, same `k
 | Identity | Service identity | Service identity + invoking user + agent role |
 | Trust boundary | Code trusted, input untrusted | Plus: the LLM's own decisions are untrusted |
 
-The infrastructure stack hasn't caught up. That's why your agent looped for 63 hours and burned $4,200. That's why a malicious PR title made three production coding agents leak their own API keys. That's why your platform team can't tell you how many agents are in production right now.
+That's why your agent looped for 63 hours and burned $4,200. Why a malicious PR title made three production coding agents leak their own API keys. Why your platform team can't tell you how many agents are running right now.
 
-**`aegrail` is the missing runtime layer.** Deterministic enforcement of identity, budget, and audit on top of any agent stack you already use.
+Layer 4 codifies the runtime contract that fills the gap — the same way Kubernetes codified the microservice contract in 2014.
 
 ---
 
 ## What it does
 
-Four primitives. Nothing else.
+Five primitives. Nothing else.
 
-1. **Scoped identity** — every agent run gets a session-bound principal. No shared API keys. Audit logs are identity-linked from line one.
-2. **Hard budget kill-switches** — cost, tokens, wall-clock, recursion depth, tool calls. The runtime stops the agent. Not the system prompt. Not the LLM. The runtime.
-3. **Structured audit log** — identity-linked, append-only, replayable record of every prompt, tool call, denial, and outcome. Forensic-grade, not debug-grade.
-4. **Per-agent tool ACL _(v0.2)_** — each agent gets an explicit registry of tools it may invoke, with optional argument predicates. Calls outside the registry, or with denied args, raise `ToolNotPermitted` deterministically. Maps to **OWASP Top 10 for Agentic Applications**: **ASI02 (Tool Misuse)** and **ASI03 (Identity & Privilege Abuse)**.
+1. **Scoped identity** — every agent run gets a session-bound principal of the form `<agent_identity>@sess_<ms>_<rand>`. The invoking user is stamped alongside. Audit logs are identity-linked from line one. No shared API keys.
 
-What it deliberately does **not** do (yet):
-- Egress allowlist proxy (v0.3)
-- Approval gates (v0.4)
-- Hosted dashboard (v1.0, paid)
-- Prompt management or eval (integrate Langfuse — we don't compete)
+2. **Hard budget kill-switches** — USD, tokens, wall-clock, recursion depth, tool calls. The runtime raises `BudgetExceeded` from Python (or returns HTTP 429 from the engine). Not the system prompt. Not the LLM. The runtime.
+
+3. **Tamper-evident audit log** — append-only JSONL with SHA-256 chain links between events. Identity-linked, replayable, regulator-presentable. Provider-neutral schema: same fields whether the call was Anthropic or OpenAI or Bedrock or Vertex.
+
+4. **Per-agent tool ACL** — each agent declares its tool registry at construction. Tools not in the registry cannot be called, regardless of what the LLM decides. Optional argument predicates. Three machine-readable deny reasons: `not_registered`, `predicate_false`, `predicate_error`. Maps to **OWASP Top 10 for Agentic Applications**: **ASI02 (Tool Misuse)** and **ASI03 (Identity & Privilege Abuse)**.
+
+5. **Egress + data boundary** _(network layer, via [`aegrail-engine`](https://github.com/aegrail/aegrail-engine))_ — the Go sidecar enforces allowlist + token budgets + audit chain at the L7 HTTPS boundary. Works for any agent in any language, including ones that never imported the Python SDK. HTTPS MITM with parsers for OpenAI / Anthropic / Bedrock / Vertex / Gemini / Ollama response shapes.
+
+---
+
+## Provider-neutral by design
+
+A serious production agent uses multiple providers — Anthropic for reasoning, OpenAI for structured output, Vertex Gemini for vision, Bedrock for data-residency. Layer 4 has to abstract over Layer 2.
+
+| Capability | OpenAI SDK | Anthropic SDK | Bedrock | Vertex | LangChain | `aegrail` |
+|---|---|---|---|---|---|---|
+| Cross-provider identity | — | — | IAM | SA | callbacks | **provider-neutral principal** |
+| Cross-provider cost rollup | — | — | — | — | partial | **single Budget** |
+| Hard kill-switch at runtime boundary | — | — | — | — | — | **`BudgetExceeded`** |
+| Tamper-evident audit chain | — | — | — | — | — | **SHA-256 JSONL chain** |
+| Per-agent tool registry with arg predicates | — | — | — | — | partial | **ASI02/03 aligned** |
+| Egress allowlist at L7 (any language) | — | — | VPC | VPC | — | **engine sidecar** |
+| Token budget on direct HTTPS | — | — | — | — | — | **MITM proxy + parser** |
+| Provider-neutral event schema | — | — | — | — | partial | **yes** |
+
+`session.record_llm(cost_usd=..., prompt_tokens=..., completion_tokens=..., model=...)` accepts numbers, not provider objects. Where the caller got the numbers (provider response, LiteLLM, internal price table) is the caller's problem. The library enforces.
+
+---
+
+## What it deliberately does NOT do
+
+Layer 4's value is in being small and load-bearing, not big and ergonomic. `aegrail` is not:
+
+- **Not a prompt firewall** — compose with Lakera or Prompt Security upstream
+- **Not an eval framework** — use Langfuse, Braintrust, or Galileo
+- **Not a model gateway** — use LiteLLM or your provider's SDK
+- **Not a multi-agent orchestrator** — use LangGraph / CrewAI / AutoGen / MCP; the contract holds regardless
+- **Not an IAM replacement** — identity attribution, yes; authentication, no
+
+---
+
+## Adoption shape
+
+| Layer | Component | License | Status |
+|---|---|---|---|
+| In-process SDK | [`aegrail`](https://github.com/aegrail/aegrail) (Python) | Apache 2.0 | Stable |
+| Network sidecar | [`aegrail-engine`](https://github.com/aegrail/aegrail-engine) (Go + Helm) | Apache 2.0 | Stable |
+| Hosted control plane | Fleet inventory, audit search, RBAC, SOC2 inheritance | Commercial | Roadmap (v1.0) |
+
+The two open-source components are Apache 2.0 and will stay that way. A security library you can't audit is not a security library. The future hosted control plane is the commercial layer — same shape as Sentry, Grafana, GitLab. If you self-host everything, you're never blocked.
 
 ---
 
