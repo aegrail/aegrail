@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".assets/logo.svg" alt="aegrail" width="140">
+<img src=".assets/logo.png" alt="aegrail" width="140">
 
 # aegrail
 
